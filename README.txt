@@ -22,11 +22,12 @@
 # naming conventions to match TV shows and movies and rename/move/sort/organize
 # them as you like.
 #
-# The script relies on python library "guessit" (http://guessit.readthedocs.org)
+# The script relies on python library "guessit" (https://guessit-io.github.io/guessit/)
 # to extract information from file names and includes portions of code from
 # "SABnzbd+" (http://sabnzbd.org).
 #
 # Info about pp-script:
 # Author: Andrey Prygunkov (nzbget@gmail.com).
-# Web-site: https://github.com/nzbget/VideoSort.
+# Web-site: http://nzbget.net/VideoSort.
+# Web-site: https://github.com/nzbgetcom/Extension-VideoSort (Python 3.9.x).
 # PP-Script Version: see <VideoSort.py>.

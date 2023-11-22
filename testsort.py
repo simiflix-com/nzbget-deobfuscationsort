@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Test for VideoSort post-processing script for NZBGet.
 #
@@ -21,8 +21,6 @@
 import sys
 from os.path import dirname
 import os
-import traceback
-import re
 import shutil
 import subprocess
 import json
@@ -42,15 +40,20 @@ for opt, arg in options:
 	elif opt in ('-t', '--testid'):
 		test_ids.append(arg)
 
+def get_python():
+	if os.name == 'nt':
+		return 'python'
+	return 'python3'
+
 def set_defaults():
 	# NZBGet global options
 	os.environ['NZBOP_SCRIPTDIR'] = 'test'
 
 	# script options
-	os.environ['NZBPO_MOVIESDIR'] = root_dir + '/movies'
-	os.environ['NZBPO_SERIESDIR'] = root_dir + '/series'
-	os.environ['NZBPO_DATEDDIR'] = root_dir + '/dated'
-	os.environ['NZBPO_OTHERTVDIR'] = root_dir + '/tv'
+	os.environ['NZBPO_MOVIESDIR'] = os.path.join(root_dir, 'movies')
+	os.environ['NZBPO_SERIESDIR'] = os.path.join(root_dir, 'series')
+	os.environ['NZBPO_DATEDDIR'] = os.path.join(root_dir, 'dated')
+	os.environ['NZBPO_OTHERTVDIR'] = os.path.join(root_dir, 'tv')
 	os.environ['NZBPO_VIDEOEXTENSIONS'] = '.mkv,.mp4,.avi'
 	os.environ['NZBPO_SATELLITEEXTENSIONS'] = '.srt'
 	os.environ['NZBPO_MULTIPLEEPISODES'] = 'list'
@@ -102,7 +105,7 @@ def run_test(testobj):
 	if verbose:
 		print('Executing...')
 	sys.stdout.flush()
-	proc = subprocess.Popen(['python', root_dir + '/VideoSort.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ.copy())
+	proc = subprocess.Popen([get_python(), root_dir + '/VideoSort.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ.copy())
 	out, err = proc.communicate()
 	out += err
 	ret = proc.returncode
@@ -112,12 +115,14 @@ def run_test(testobj):
 	dest = ''
 
 	if ret == 93:
-		for line in out.split(b'\n'):
-			if line.startswith(b'destination path: '):
-				line = line[len(b'destination path: '):]
-				if line.startswith(root_dir.encode()):
-					line = line[len(root_dir.encode()):]
-				dest = line.replace(b'\\', b'/').decode()
+		decoded = out.decode().split('\n')
+		for line in decoded:
+			stripped = line.rstrip()
+			if stripped.startswith('destination path: '):
+				stripped = stripped[len('destination path: '):]
+				if stripped.startswith(root_dir):
+					stripped = stripped[len(root_dir):]
+				dest = stripped.replace('\\', '/')
 		success = dest == output_file and output_file != ''
 
 	if success:

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # VideoSort post-processing script for NZBGet.
 #
@@ -20,7 +20,7 @@
 
 
 ##############################################################################
-### NZBGET POST-PROCESSING SCRIPT                                           ###
+### NZBGET POST-PROCESSING SCRIPT                                          ###
 
 # Sort movies and tv shows.
 #
@@ -35,13 +35,14 @@
 # Info about pp-script:
 # Author: Andrey Prygunkov (nzbget@gmail.com).
 # Web-site: http://nzbget.net/VideoSort.
+# Web-site: https://github.com/nzbgetcom/Extension-VideoSort (Python 3.9.x).
 # License: GPLv3 (http://www.gnu.org/licenses/gpl.html).
 # PP-Script Version: 9.0.
 #
-# NOTE: This script requires Python 2.x or 3.x to be installed on your system.
+# NOTE: This script requires Python 3.9.x and above to be installed on your system.
 
 ##############################################################################
-### OPTIONS                                                                   ###
+### OPTIONS                                                                ###
 
 # Destination directory for movies.
 #
@@ -272,6 +273,7 @@ import re
 import shutil
 import guessit
 import difflib
+import locale
 
 try:
     unicode
@@ -475,10 +477,10 @@ def move_satellites(videofile, dest):
                     if guess and 'subtitle_language' in guess:
                         fbase = fbase[:fbase.rfind('.')]
                         # Use alpha2 subtitle language from GuessIt (en, es, de, etc.)
-                        subpart = '.' + guess['subtitle_language'][0].alpha2
+                        subpart = '.' + guess['subtitle_language'].alpha2
                     if verbose:
                         if subpart != '':
-                            print('Satellite: %s is a subtitle [%s]' % (filename, guess['subtitle_language'][0]))
+                            print('Satellite: %s is a subtitle [%s]' % (filename, guess['subtitle_language']))
                         else:
                             # English (or undetermined)
                             print('Satellite: %s is a subtitle' % filename)
@@ -740,7 +742,7 @@ try:
     if sys.platform == 'darwin':
         gUTF = True
     else:
-        gUTF = locale.getdefaultlocale()[1].lower().find('utf') >= 0
+        gUTF = locale.getlocale()[1] == 'UTF-8'
 except:
     # Incorrect locale implementation, assume the worst
     gUTF = False
@@ -794,7 +796,7 @@ def add_common_mapping(old_filename, guess, mapping):
     mapping.append(('%_cAt', category_name_three))
 
     # Video information
-    mapping.append(('%qf', guess.get('format', '')))
+    mapping.append(('%qf', guess.get('source', '')))
     mapping.append(('%qss', guess.get('screen_size', '')))
     mapping.append(('%qvc', guess.get('video_codec', '')))
     mapping.append(('%qac', guess.get('audio_codec', '')))
@@ -1073,6 +1075,14 @@ def apply_dnzb_headers(guess):
     if verbose and dnzb_used:
         print(guess)
 
+def year_and_season_equal(guess):
+    return guess.get('season') and guess.get('year') and guess.get('season') == guess.get('year')
+
+def is_movie(guess):
+    has_no_episode = guess.get('type') == 'episode' and guess.get('episode') == None
+    is_movie = has_no_episode or year_and_season_equal(guess) and guess.get('release_group') != 'CHD'
+    return is_movie
+
 def guess_info(filename):
     """ Parses the filename using guessit-library """
 
@@ -1108,9 +1118,9 @@ def guess_info(filename):
     # fix some strange guessit guessing:
     # if guessit doesn't find a year in the file name it thinks it is episode,
     # but we prefer it to be handled as movie instead
-    if guess.get('type') == 'episode' and guess.get('episode', '') == '':
+
+    if is_movie(guess):
         guess['type'] = 'movie'
-        guess['year'] = '1900'
         if verbose:
             print('episode without episode-number is a movie')
 
@@ -1122,7 +1132,7 @@ def guess_info(filename):
             print('treat parts as episodes')
 
     # add season number if not present
-    if guess['type'] == 'episode' and (guess.get('season') == None):
+    if guess['type'] == 'episode' and (guess.get('season') == None or year_and_season_equal(guess)):
         guess['season'] = 1
         if verbose:
             print('force season 1')

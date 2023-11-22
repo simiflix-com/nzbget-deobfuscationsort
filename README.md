@@ -1,5 +1,16 @@
+> **Note:** this repo is a fork of the original github [project](https://github.com/nzbget/VideoSort)
+> made by @hugbug.
+
+> **Note:** this script works with Python 3.9.x and above versions.
+
+> **Note:** if you need Python 3.9.x and below support please use [v8.1](https://github.com/nzbgetcom/Extension-VideoSort/releases/tag/v8.1) release.
+
+> **Note:** if you need Python 2.x support please use [v8](https://github.com/nzbgetcom/Extension-VideoSort/releases/tag/v8.0) release.
+
+> **Note:** [Here](https://github.com/nzbgetcom/nzbget/discussions/56) you can discuss problems with different versions of Python.
+
 # VideoSort
-Post-processing script for [NZBGet](http://nzbget.net).
+[Post-processing](https://nzbget.com/documentation/post-processing-scripts/) script for [NZBGet](https://nzbget.com).
 
 This is a script for downloaded TV shows and movies. It uses scene-standard naming conventions to match TV shows and movies and rename/move/sort/organize them as you like.
 
@@ -25,7 +36,7 @@ VideoSort can organize:
 
 ## Installation
 
- - Download the newest version from [releases page](https://github.com/nzbget/VideoSort/releases/latest).
+ - Download the newest version from [releases page](https://github.com/nzbgetcom/Extension-VideoSort/releases).
  - Unpack into pp-scripts directory. Your pp-scripts directory now should have folder "videosort" with subfolder "lib" and file "VideoSort.py";
  - Open settings tab in NZBGet web-interface and define settings for VideoSort;
  - Save changes and restart NZBGet.
@@ -79,9 +90,17 @@ These specifiers can be used with all three types of supported video files:
  - %qac - audio codec (DTS);
  - %qah - audio channels (5.1);
  - %qrg - release group;
+ - %cat - to refer to category ("%.cat", etc.);
+ - %up - to navigate to parent directory;
  - {{text}} - uppercase the text;
  - {TEXT} - lowercase the text;
 
 Credits
 -------
-The script relies on python library "guessit" (http://guessit.readthedocs.org) to extract information from file names and includes portions of code from "SABnzbd+" (http://sabnzbd.org).
+The script relies on python libraries:
+
+- [GuessIt 3.7.1](http://guessit.readthedocs.org) to extract information from file names and includes portions of code from "SABnzbd+" (https://sabnzbd.org/).
+- [BabelFish 0.6.0](https://github.com/Diaoul/babelfish)
+- [ReBulk 3.2.0](https://github.com/Toilal/rebulk/)
+- [dateutil 2.8.2](https://github.com/dateutil/dateutil)
+- [Six 1.16](https://github.com/benjaminp/six)
