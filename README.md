@@ -1,9 +1,9 @@
 > **Note:** this repo is a fork of the original github [project](https://github.com/nzbget/VideoSort)
 > made by @hugbug.
 
-> **Note:** this script works with Python 3.9.x and above versions.
+> **Note:** this script works with Python 3.8.x and above versions.
 
-> **Note:** if you need Python 3.9.x and below support please use [v8.1](https://github.com/nzbgetcom/Extension-VideoSort/releases/tag/v8.1) release.
+> **Note:** if you need Python 3.7.x and below support please use [v8.1](https://github.com/nzbgetcom/Extension-VideoSort/releases/tag/v8.1) release.
 
 > **Note:** if you need Python 2.x support please use [v8](https://github.com/nzbgetcom/Extension-VideoSort/releases/tag/v8.0) release.
 
@@ -99,8 +99,10 @@ Credits
 -------
 The script relies on python libraries:
 
-- [GuessIt 3.7.1](http://guessit.readthedocs.org) to extract information from file names and includes portions of code from "SABnzbd+" (https://sabnzbd.org/).
+- [GuessIt 3.7.1](http://guessit.readthedocs.org) to extract information from file names and includes portions of code from [SABnzbd](https://sabnzbd.org/).
 - [BabelFish 0.6.0](https://github.com/Diaoul/babelfish)
 - [ReBulk 3.2.0](https://github.com/Toilal/rebulk/)
 - [dateutil 2.8.2](https://github.com/dateutil/dateutil)
 - [Six 1.16](https://github.com/benjaminp/six)
+- [zipp 3.17](https://github.com/jaraco/zipp)
+- [importlib_resources 6.1.1](https://github.com/python/importlib_resources)
