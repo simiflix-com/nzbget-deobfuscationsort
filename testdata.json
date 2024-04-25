@@ -26,7 +26,7 @@
   {
     "id": "up-1",
     "INPUTFILE": "Cartoon.2014.720p.Web-Dl.x264.Aac-IFT.mkv",
-    "OUTPUTFILE": "/Cartoon (2014).mkv",
+    "OUTPUTFILE": "/movies/Cartoon (2014).mkv",
     "NZBPO_MOVIESFORMAT": "%up/%t (%y).%ext",
     "NZBPO_MOVIESDIR": "/movies",
     "NZBPP_CATEGORY": "Kids cartoons"
@@ -131,6 +131,12 @@
     "NZBPR__DNZB_EPISODENAME": "Let the Children the Childbearers Toil"
   },
   {
+    "id": "series-7",
+    "INPUTFILE": "S04E18.mkv",
+    "OUTPUTFILE": "/movies/S04E18.mkv",
+    "NZBPO_SERIESFORMAT": "%sn/Season %s/%sn - S%0sE%0e - %en"
+  },
+  {
     "id": "dated-deprecated-t-1",
     "INPUTFILE": "The.Daily.Show.2013.06.27.Tom.Goldstein.HDTV.x264-FQM.mkv",
     "OUTPUTFILE": "/dated/2013-06/The Daily Show - 2013-6-27.mkv",
@@ -191,5 +197,13 @@
     "INPUTFILE": "Bohemian.Rhapsody.2018.REMUX.2160p.(10bit).BluRay.UHD.HDR.HEVC.TrueHD.DTS-HD.MA.7.1-LEGi0N.mkv",
     "OUTPUTFILE": "/movies/Bohemian Rhapsody (2018) Ultra HD Blu-ray-2160p H.265 7.1 Dolby TrueHD.DTS-HD.mkv",
     "NZBPO_MOVIESFORMAT": "%t (%y) %qf-%qss %qvc %qah %qac.%ext"
+  },
+  {
+    "id": "spec-char",
+    "INPUTFILE": "Shōgun.S01E02E03E04.720p.BluRay.x264-SiNNERS.mkv",
+    "OUTPUTFILE": "/series/Shōgun/Season 01/Shōgun - S01E02-E04 - [720p][Blu-ray][SiNNERS].mkv",
+    "NZBPO_SERIESFORMAT": "%sn\\Season %0s\\%sn - S%0sE%0e - %en [%qss][%qf][%qrg]",
+    "NZBPO_MULTIPLEEPISODES": "range",
+    "NZBPO_EPISODESEPARATOR": "-E"
   }
 ]
