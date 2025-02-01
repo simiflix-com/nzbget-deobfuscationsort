@@ -1,14 +1,14 @@
 {
     "main": "main.py",
-    "name": "VideoSort",
-    "homepage": "https://github.com/nzbgetcom/Extension-VideoSort",
+    "name": "DeobfuscationSort",
+    "homepage": "https://github.com/simiflix/nzbget-deobfuscationsort",
     "kind": "POST-PROCESSING",
-    "displayName": "Video Sort",
-    "version": "10.3",
+    "displayName": "Deobfuscation Sort",
+    "version": "0.0.1",
     "nzbgetMinVersion": "23.0",
-    "author": "Andrey Prygunkov",
+    "author": "Simi Flix",
     "license": "GNU",
-    "about": "Sorts movies and tv shows.",
+    "about": "Sorts and deobfuscates movies and tv shows.",
     "queueEvents": "",
     "requirements": [
         "This script requires Python 3.8.x and above to be installed on your system."
@@ -16,17 +16,19 @@
     "description": [
         "This is a script for downloaded TV shows and movies. It uses scene-standard",
         "naming conventions to match TV shows and movies and rename/move/sort/organize",
-        "them as you like."
+        "them as you like. It is based on `VideoSort` by Andrey Prygunkov.",
+        "In addition, it will strip obfuscated words from the",
+        "file names."
     ],
     "options": [
         {
             "name": "MoviesDir",
             "displayName": "MoviesDir",
-            "value": "${DestDir}/movies",
+            "value": "",
             "description": [
                 "Destination directory for movies.",
                 "",
-                "The option can be left empty to use global DestDir or CategoryX.DestDir",
+                "The option defaults to empty, which results in using the global DestDir or CategoryX.DestDir",
                 "as destination."
             ],
             "select": []
@@ -38,7 +40,7 @@
             "description": [
                 "Destination directory for seasoned TV shows.",
                 "",
-                "The option can be left empty to use global DestDir or CategoryX.DestDir",
+                "The option defaults to empty, which results in using the global DestDir or CategoryX.DestDir",
                 "as destination."
             ],
             "select": []
@@ -50,7 +52,7 @@
             "description": [
                 "Destination directory for dated TV shows.",
                 "",
-                "The option can be left empty to use global DestDir or CategoryX.DestDir",
+                "The option defaults to empty, which results in using the global DestDir or CategoryX.DestDir",
                 "as destination."
             ],
             "select": []
@@ -62,7 +64,7 @@
             "description": [
                 "Destination directory for other TV shows.",
                 "",
-                "The option can be left empty to use global DestDir or CategoryX.DestDir",
+                "The option defaults to empty, which results in using the global DestDir or CategoryX.DestDir",
                 "as destination."
             ],
             "select": []
@@ -74,11 +76,11 @@
             "description": [
                 "List of TV categories.",
                 "",
-                "Comma separated list of categories for TV. VideoSort automatically",
+                "Comma separated list of categories for TV. DeobfuscationSort automatically",
                 "distinguishes movies from series and dated TV shows. But it needs help",
                 "to distinguish movies from other TV shows because they are named",
                 "using same conventions. If a download has associated category listed in",
-                "option <TvCategories>, VideoSort uses this information.",
+                "option <TvCategories>, DeobfuscationSort uses this information.",
                 "",
                 "Category names must match categories defined in NZBGet."
             ],
@@ -300,6 +302,26 @@
             "select": []
         },
         {
+            "name": "DeObfuscateWords",
+            "displayName": "DeObfuscateWords",
+            "value": "RP,1,NZBGeek,Obfuscated,Obfuscation,Scrambled,sample,Pre,postbot,xpost,Rakuv,WhiteRev,BUYMORE,AsRequested,AlternativeToRequested,GEROV,Z0iDS3N,Chamele0n,4P,4Planet,AlteZachen,RePACKPOST,RARBG,SirUppington",
+            "description": [
+                "List of words to strip from obfuscated release names (comma-separated).",
+                "The script will remove these words after a hyphen in the directory name,",
+                "restoring the original title. For example, 'Movie.Title-OBFUSCATION' becomes 'Movie.Title'."
+            ],
+            "select": []
+        },
+        {
+            "name": "ReleaseGroups",
+            "displayName": "ReleaseGroups",
+            "value": "3DM,AJP69,BHDStudio,BMF,BTN,BV,BeyondHD,CJ,CLASS,CMRG,CODEX,CONSPIR4CY,CRX,CRiSC,Chotab,CtrlHD,D-Z0N3,D-Z0N3,D-Z0N3,DEViANCE,DON,Dariush,DrinkOrDie,E.N.D,E1,EA,EDPH,ESiR,EVO,EVO,EViLiSO,EXCiSION,EbP,Echelon,FAiRLiGHT,FLUX,FTW-HD,FilmHD,FoRM,FraMeSToR,FraMeSToR,GALAXY,GS88,Geek,HANDJOB,HATRED,HDMaNiAcS,HYBRID,HiDt,HiFi,HiP,Hoodlum,IDE,KASHMiR,KRaLiMaRKo,Kalisto,LEGi0N,LiNG,LoRD,MZABI,Myth,NCmt,NTb,NTb,NyHD,ORiGEN,P0W4HD,PARADOX,PTer,Penumbra,Positive,RELOADED,REVOLT,Radium,Risciso,SA89,SKIDROW,SMURF,STEAMPUNKS,SaNcTi,SbR,SiMPLE,TBB,TDD,TEPES,TayTo,ThD,VLAD,ViTALiTY,VietHD,W4NK3R,WMING,ZIMBO,ZQ,c0ke,de[42],decibeL,hdalx,iFT,iON,luvBB,maVen,nmd,playHD,playWEB",
+            "description": [
+                "List of known scene or warez groups to ensure case preservation."
+            ],
+            "select": []
+        },
+        {
             "name": "DNZBHeaders",
             "displayName": "DNZBHeaders",
             "value": "yes",
@@ -344,6 +366,19 @@
                 "",
                 "If not active the files are still moved into destination but",
                 "unique suffixes are added at the end of file names, e.g. My.Show.(2).mkv."
+            ],
+            "select": [
+                "yes",
+                "no"
+            ]
+        },
+        {
+            "name": "OverwriteSmaller",
+            "displayName": "OverwriteSmaller",
+            "value": "yes",
+            "description": [
+                "When enabled, the script replaces older or smaller files with the newly",
+                "processed file if it is larger in size."
             ],
             "select": [
                 "yes",

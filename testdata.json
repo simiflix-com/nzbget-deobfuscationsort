@@ -1,5 +1,62 @@
 [
   {
+    "id": "deobfuscate-1",
+    "INPUTFILE": "71.2014.720p.Web-Dl.x264.Aac-IFT-Scrambled/abc.mkv",
+    "OUTPUTFILE": "/movies/71.2014.720p.Web-Dl.x264.Aac-IFT-Scrambled/71.2014.720p.Web-Dl.x264.Aac-IFT.mkv",
+    "NZBPO_MOVIESFORMAT": "%dn/%ddn.%ext"
+  },
+  {
+    "id": "deobfuscate-2",
+    "INPUTFILE": "71.2014.720p.Web-Dl.x264.Aac-IFT-Obfuscated/71.2014.720p.Web-Dl.x264.Aac-IFT-Obfuscated.mkv",
+    "OUTPUTFILE": "/movies/71.2014.720p.Web-Dl.x264.Aac-IFT-Obfuscated/71.2014.720p.Web-Dl.x264.Aac-IFT.mkv",
+    "NZBPO_MOVIESFORMAT": "%dn/%ddn.%ext"
+  },
+  {
+      "id": "overwrite_smaller_bigger",
+      "INPUTFILE": "/movies/71.2014.1080p.BluRay.DTS.x264-DON/71.2014.1080p.BluRay.DTS.x264-DON.mkv",
+      "OUTPUTFILE": "/movies/71.2014.1080p.BluRay.DTS.x264-DON/71.2014.1080p.BluRay.DTS.x264-DON.mkv",
+      "NZBPO_MOVIESFORMAT": "%dn/%ddn.%ext",
+      "NZBPO_OVERWRITESMALLER": "yes",
+      "EXISTINGFILE": "/movies/71.2014.720p.Web-Dl.x264.AC-3-iFT/71.2014.720p.Web-Dl.x264.AC-3-iFT.mkv",
+      "EXISTINGFILESIZE": 10,
+      "INPUTFILESIZE": 100,
+      "OUTPUTFILESIZE": 100
+  },
+  {
+      "id": "overwrite_smaller_smaller",
+      "INPUTFILE": "/movies/71.2014.720p.Web-Dl.x264.AC-3-iFT/71.2014.720p.Web-Dl.x264.AC-3-iFT.mkv",
+      "OUTPUTFILE": "/movies/71.2014.1080p.BluRay.DTS.x264-DON/71.2014.1080p.BluRay.DTS.x264-DON.mkv",
+      "NZBPO_MOVIESFORMAT": "%dn/%ddn.%ext",
+      "NZBPO_OVERWRITESMALLER": "yes",
+      "EXISTINGFILE": "/movies/71.2014.1080p.BluRay.DTS.x264-DON/71.2014.1080p.BluRay.DTS.x264-DON.mkv",
+      "EXISTINGFILESIZE": 100,
+      "INPUTFILESIZE": 10,
+      "OUTPUTFILESIZE": 100
+  },
+  {
+      "id": "overwrite_smaller_equal",
+      "INPUTFILE": "/movies/71.2014.1080p.BluRay.DTS.x264-DON/71.2014.1080p.BluRay.DTS.x264-DON.mkv",
+      "OUTPUTFILE": "/movies/71.2014.1080p.BluRay.DTS.x264-DON/71.2014.1080p.BluRay.DTS.x264-DON.mkv",
+      "NZBPO_MOVIESFORMAT": "%dn/%ddn.%ext",
+      "NZBPO_OVERWRITESMALLER": "yes",
+      "EXISTINGFILE": "/movies/71.2014.1080p.BluRay.DTS.x264-DON/71.2014.1080p.BluRay.DTS.x264-DON.mkv",
+      "EXISTINGFILESIZE": 50,
+      "INPUTFILESIZE": 50,
+      "OUTPUTFILESIZE": 50
+  },
+  {
+      "id": "overwrite_smaller_similar",
+
+      "INPUTFILE": "/movies/71.2014.1080p.Web-Dl.x264.AC-3-iFT/71.2014.1080p.Web-Dl.x264.AC-3-iFT.mkv",
+      "OUTPUTFILE": "/movies/71.2014.1080p.Web-Dl.x264.AC-3-iFT/71.2014.1080p.Web-Dl.x264.AC-3-iFT.mkv",
+      "NZBPO_MOVIESFORMAT": "%dn/%ddn.%ext",
+      "NZBPO_OVERWRITESMALLER": "no",
+      "EXISTINGFILE": "/movies/71.2014.1080p.BluRay.DTS.x264-DON/71.2014.1080p.BluRay.DTS.x264-DON.mkv",
+      "EXISTINGFILESIZE": 100,
+      "INPUTFILESIZE": 90,
+      "OUTPUTFILESIZE": 100
+  },
+  {
     "id": "up-ext-1",
     "INPUTFILE": "71.2014.720p.Web-Dl.x264.Aac-IFT.MKV",
     "OUTPUTFILE": "/movies/71 (2014).MKV",

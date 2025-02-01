@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 #
-# VideoSort post-processing script for NZBGet.
+# DeobfuscationSort post-processing script for NZBGet.
 #
+# Copyright (C) 2025 Simi Flix <simiflix@gmail.com>
 # Copyright (C) 2013-2020 Andrey Prygunkov <hugbug@users.sourceforge.net>
 # Copyright (C) 2024 Denis <denis@nzbget.com>
 #
@@ -20,6 +21,7 @@
 #
 
 
+from pathlib import Path
 import sys
 from os.path import dirname
 
@@ -33,6 +35,7 @@ import shutil
 import guessit
 import difflib
 import locale
+import glob
 
 try:
     unicode
@@ -43,6 +46,24 @@ except NameError:
 POSTPROCESS_SUCCESS = 93
 POSTPROCESS_NONE = 95
 POSTPROCESS_ERROR = 94
+
+
+# Logging helpers for consistent message formatting
+def log_to_nzbget(msg, dest="DETAIL"):
+    print(f"[{dest}] {msg}")
+
+def logdet(msg):
+    return log_to_nzbget(msg, "DETAIL")
+
+def loginf(msg):
+    return log_to_nzbget(msg, "INFO")
+
+def logwar(msg):
+    return log_to_nzbget(msg, "WARNING")
+
+def logerr(msg):
+    return log_to_nzbget(msg, "ERROR")
+
 
 # Check if directory still exist (for post-process again)
 if not os.path.exists(os.environ["NZBPP_DIRECTORY"]):
@@ -81,6 +102,8 @@ required_options = (
     "NZBPO_Cleanup",
     "NZBPO_LowerWords",
     "NZBPO_UpperWords",
+    "NZBPO_DeObfuscateWords",
+    "NZBPO_ReleaseGroups",
     "NZBPO_TvCategories",
     "NZBPO_Preview",
     "NZBPO_Verbose",
@@ -115,12 +138,15 @@ satellite_extensions = (
 min_size = int(os.environ["NZBPO_MINSIZE"])
 min_size <<= 20
 overwrite = os.environ["NZBPO_OVERWRITE"] == "yes"
+overwrite_smaller = os.environ["NZBPO_OVERWRITESMALLER"] == "yes"
 cleanup = os.environ["NZBPO_CLEANUP"] == "yes"
 preview = os.environ["NZBPO_PREVIEW"] == "yes"
 verbose = os.environ["NZBPO_VERBOSE"] == "yes"
 satellites = len(satellite_extensions) > 0
 lower_words = os.environ["NZBPO_LOWERWORDS"].replace(" ", "").split(",")
 upper_words = os.environ["NZBPO_UPPERWORDS"].replace(" ", "").split(",")
+deobfuscate_words = os.environ["NZBPO_DEOBFUSCATEWORDS"].replace(" ", "").split(",")
+release_groups = os.environ["NZBPO_RELEASEGROUPS"].replace(" ", "").split(",")
 series_year = os.environ.get("NZBPO_SERIESYEAR", "yes") == "yes"
 
 tv_categories = os.environ["NZBPO_TVCATEGORIES"].lower().split(",")
@@ -139,6 +165,21 @@ use_nzb_name = False
 deep_scan = dnzb_headers
 # difflib match threshold. Anything below is not considered a match
 deep_scan_ratio = 0.60
+
+
+if len(deobfuscate_words) and len(deobfuscate_words[0]):
+    # if verbose:
+    #     print('De-obfuscation words: "{}"'.format(" | ".join(deobfuscate_words)))
+    deobfuscate_re = re.compile(r"(.+?-[.0-9a-z]+)(?:\W+(?:{})[a-z0-9]*\W*)*$".format("|".join([re.escape(word) for word in deobfuscate_words])), re.IGNORECASE)
+else:
+    deobfuscate_re = re.compile(r"""
+        ^(.+? # Minimal length match for anything other than "-"
+        [-][.0-9a-z]+) # "-" followed by alphanumeric and dot indicates name of release group
+        .*$ # Anything that is left is considered deobfuscation and will be stripped
+    """, flags=re.VERBOSE | re.IGNORECASE)
+
+# if verbose:
+#     print('De-obfuscation regex: "{}"'.format(deobfuscate_re.pattern))
 
 if preview:
     print("[WARNING] *** PREVIEW MODE ON - NO CHANGES TO FILE SYSTEM ***")
@@ -414,6 +455,94 @@ def path_subst(path, mapping):
     )
 
 
+def get_deobfuscated_dirname(dirname, deobfuscate_re, name=None):
+    global release_groups
+    dirname_clean = dirname.strip()
+    dirname = dirname_clean
+    if deobfuscate_re:
+        dirname_deobfuscated = re.sub(deobfuscate_re, r"\1", dirname_clean)
+        dirname = dirname_deobfuscated
+        if verbose:
+            print('De-obfuscated NZB dirname: "{}" --> "{}"'.format(dirname_clean, dirname_deobfuscated))
+    else:
+        if verbose:
+            print("Cannot de-obfuscate NZB dirname: "
+                  'invalid value for configuration value "DeobfuscateWords": "{}"'
+                  .format(deobfuscate_words))
+
+    if name:
+        # Determine if file name is likely to be properly cased
+        case_check_re = r"^[A-Z0-9]+.+\b\d{3,4}p\b.*-[-A-Za-z0-9]+[A-Z]+[-A-Za-z0-9]*$"
+        if re.match(case_check_re, dirname):
+            loginf(f"Not fixing a properly cased dirname: '{dirname}'")
+        else:
+            title, _, _ = get_titles(name, True)
+            dirname_title = []
+
+            release_groups_list = [re.escape(token) for token in release_groups]
+            release_groups_re = "|".join(release_groups_list)
+
+            def re_unescape(escaped_re):
+                return re.sub(r"\\(.)", r"\1", escaped_re)
+
+            def scene_group_case(match):
+                for extra_group in release_groups_list:
+                    loginf(f"Comparing extra group '{extra_group}' with match '{match.group(1)}'")
+                    if re.match(f"{extra_group}$", match.group(1), flags=re.IGNORECASE):
+                        return "-" + re_unescape(extra_group)
+                return "-" + re.sub(r"I", "i", match.group(1).upper())
+
+            terms = [(r"(\d{3,4})p", r"\1p"),
+                     (r"x(\d{3,4})", r"x\1"),
+                     (r"(\d{2,2}Bit)", r"\1Bit"),
+                     (r"BluRay", "BluRay"),
+                     (r"Web(.?)DL", r"Web\1DL"),
+                     (r"Web(.?)Rip", r"Web\1Rip"),
+                     (r"AAC", "AAC"),
+                     (r"Dolby", "Dolby"),
+                     (r"Atmos", "Atmos"),
+                     (r"TrueHD", "TrueHD"),
+                     (r"DD([57]).?1", "DD\1.1"),
+                     (r"DTS.?X", r"DTS-X"),
+                     (r"DTS.?HD", r"DTS-HD"),
+                     (r"DTS.?ES", r"DTS-ES"),
+                     (r"DTS.?HD.?MA", r"DTS-HD.?MA"),
+                     (r"-(([A-Za-z0-9]+)|{})$".format(release_groups_re), scene_group_case)
+            ]
+
+            title_match_re = r"(.+?)\b\d{3,4}p\b"
+            title_match = re.search(title_match_re, dirname, flags=re.IGNORECASE)
+            if title_match:
+                title_len = min(len(title_match.group(1)), len(title))
+                loginf(f'Comparing dirname "{dirname[0:title_len]}" with titled dirname: "{title[0:title_len]}"')
+                for idx in range(title_len):
+                    if dirname[idx] != title[idx] and dirname[idx].lower() == title[idx].lower():
+                        dirname_title.append(title[idx])
+                    else:
+                        dirname_title.append(dirname[idx])
+
+                dirname = "".join(dirname_title) + dirname[title_len:]
+            else:
+                logwar(f'dirname "{dirname}" does not match {title_match_re}"')
+
+            for term in terms:
+                dirname = re.sub(term[0], term[1], dirname, flags=re.IGNORECASE)
+
+            loginf(f'Case-fixed dirname: "{dirname}"')
+
+    # The title with spaces replaced by dots
+    dots = dirname.replace(" - ", "-").replace(" ",".").replace("_",".")
+    dots = dots.replace("(", ".").replace(")",".").replace("..",".").rstrip(".")
+
+    # The dirname with spaces replaced by underscores
+    underscores = dirname.replace(" ","_").replace(".","_").replace("__","_").rstrip("_")
+
+    # The dirname with dots and underscores replaced by spaces
+    spaces = dirname.replace("_"," ").replace("."," ").replace("  "," ").rstrip(" ")
+
+    return dirname, dots, underscores, spaces
+
+
 def get_titles(name, titleing=False):
     """
     The title will be the part before the match
@@ -625,6 +754,18 @@ def add_common_mapping(old_filename, guess, mapping):
     mapping.append(("%qac", guess.get("audio_codec", "")))
     mapping.append(("%qah", guess.get("audio_channels", "")))
     mapping.append(("%qrg", guess.get("release_group", "")))
+
+    # De-obfuscated directory name
+    deobfuscated_dirname, deobfuscated_dirname_dots, deobfuscated_dirname_underscores, deobfuscated_dirname_spaces = get_deobfuscated_dirname(original_dirname, deobfuscate_re)
+    mapping.append(('%ddn', deobfuscated_dirname))
+    mapping.append(('%.ddn', deobfuscated_dirname_dots))
+    mapping.append(('%_ddn', deobfuscated_dirname_underscores))
+    mapping.append(('%^ddn', deobfuscated_dirname_spaces))
+    deobfuscated_dirname_titled, deobfuscated_dirname_titled_dots, deobfuscated_dirname_titled_underscores, deobfuscated_dirname_titled_spaces = get_deobfuscated_dirname(original_dirname, deobfuscate_re, title_name)
+    mapping.append(('%ddN', deobfuscated_dirname_titled))
+    mapping.append(('%.ddN', deobfuscated_dirname_titled_dots))
+    mapping.append(('%_ddN', deobfuscated_dirname_titled_underscores))
+    mapping.append(('%^ddN', deobfuscated_dirname_titled_spaces))
 
 
 def add_series_mapping(guess, mapping):
@@ -1125,6 +1266,98 @@ def construct_path(filename):
     return new_path
 
 
+def construct_filename_glob(dest_path):
+    """Parses the destination path and generates a glob pattern to detect existing files"""
+
+    dest_file = str(dest_path)
+    # Get the filename component of the destination path without the directory and extension
+    dest_filename = dest_path.stem
+
+    guess = guess_info(dest_file)
+    # properties = guessit.api.properties(unicode(dest_file))
+
+    identifying_filename_components = [
+        "title",
+        "season",
+        "episode",
+        "year",
+        "edition",
+        "part",
+        "date",
+    ]
+  
+    # Replace non-identifying components by wildcard character `*`
+    filename_glob = ""
+    identifying_spans = []
+    for component in identifying_filename_components:
+        value = guess.get(component, None)
+        if value: 
+            match = re.search(re.escape(str(value)), dest_filename, re.IGNORECASE)
+            if match:
+                identifying_spans.append(match.span())
+    
+    last_end = 0
+    for span in sorted(identifying_spans, key=lambda x: x[0]):
+        # Add the part of the destination filename referenced by the span
+        # If there is a gap between the last span and this one, add a wildcard character
+        if span[0] > last_end:
+            filename_glob += "*" # + dest_filename[last_end:span[0]]
+        filename_glob += dest_filename[span[0]:span[1]]
+        last_end = span[1]
+    if last_end < len(dest_filename):
+        filename_glob += "*" # + dest_filename[last_end:]
+    
+    dest_path_glob = dest_path.parent / (filename_glob + dest_path.suffix)
+
+    loginf(f'construct_filename_glob("{dest_path}"): "{dest_path_glob}"')
+
+    return dest_path_glob
+
+def rename_overwrite_smaller(old, new):
+    old_size = os.path.getsize(old)
+    # Create a glob pattern to match all files with the same title and year
+    filename_glob = construct_filename_glob(Path(new))
+    if verbose:
+        loginf('filename_glob: "{}"'.format(filename_glob))
+    smallest_size = sys.maxsize
+    largest_size = 0
+    smallest_file = None
+    largest_file = None
+    # Use the glob method to iterate through matching files
+    for match in filename_glob.parent.glob(filename_glob.name):
+        if verbose:
+            loginf('checking size of match: "{}"'.format(match))
+        match_size = os.path.getsize(match)
+        if match_size > largest_size:
+            largest_size = match_size
+            largest_file = match
+            if verbose:
+                loginf('match with size {} is now the largest file: "{}"'.format(largest_size, largest_file))
+        if match_size < smallest_size:
+            smallest_size = match_size
+            smallest_file = match
+            if verbose:
+                loginf('match with size {} is now the smallest file: "{}"'.format(smallest_size, smallest_file))
+    if smallest_file:
+        if smallest_file != new:
+            if old_size > largest_size:
+                if verbose:
+                    loginf('FIXME: should replace smallest file  "{}" matching glob "{}"'.format(smallest_file, filename_glob))
+                # FIXME: This is a dangerous operation. It should be disabled by default.
+                # os.remove(smallest_file)
+            # FIXME: This is a dangerous operation. It should be disabled by default.
+            # else:
+            #     if verbose:
+            #         loginf('remove downloaded directory: "{}"'.format(download_dir))
+            #     shutil.rmtree(download_dir)
+        else:
+            if verbose:
+                loginf('smallest file = new: "{}" = "{}"'.format(smallest_file, new))
+
+    else:
+        if verbose:
+            loginf('no file matching glob "{}"'.format(filename_glob))
+
 # Flag indicating that anything was moved. Cleanup possible.
 files_moved = False
 
@@ -1155,7 +1388,7 @@ for root, dirs, files in os.walk(download_dir):
         except Exception as e:
             errors = True
             print("[ERROR] Failed: %s" % old_filename)
-            print("[ERROR] %s" % e)
+            print("[ERROR] Exception: %s" % e)
             traceback.print_exc()
 
 use_nzb_name = prefer_nzb_name and len(video_files) == 1
@@ -1164,10 +1397,12 @@ for old_path in video_files:
     try:
         new_path = construct_path(old_path)
 
-        # Move video file
         if new_path:
-            new_path = rename(old_path, new_path)
-            files_moved = True
+            # Move video file
+            if overwrite_smaller:
+                rename_overwrite_smaller(old_path, new_path)
+            else:
+                rename(old_path, new_path)
 
             # Move satellite files
             if satellites:
