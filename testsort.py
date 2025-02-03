@@ -196,7 +196,7 @@ def execute_deobfuscation_sort(test_file, overwrite_smaller=False):
     dest = None  # Initialize destination variable
     try:
         if ret == POSTPROCESS_SUCCESS:
-            match = re.search(r"^(?:\[[A-Z]+\] )?destination path: (.+)", out.decode(), re.MULTILINE)
+            match = re.search(r"^(?:\[[A-Z]+\] )?destination path: (.+)", out.decode())
             if match:
                 dest_path = Path(match.group(1))
                 logging.debug(f"Extracted destination path: {dest_path}")
@@ -261,7 +261,7 @@ def run_test(testobj):
     existing_file_dest = None
     success = False
     overwrite_smaller = testobj.get("NZBPO_OVERWRITESMALLER", "no") == "yes"
-    if overwrite_smaller == "yes":
+    if overwrite_smaller:
         # Validate OverwriteSmaller functionality
         # Create existing and input file with specified sizes
         existing_file = get_test_dir_path_file(testobj.get("EXISTINGFILE", ""))
@@ -301,7 +301,7 @@ def run_test(testobj):
             print("stderr: %s" % err.decode())
             print("*** FAILURE")
             print("id: %s" % testobj["id"])
-            print("expected   : %s" % output_file_spec)
+            print("expected:    %s" % output_file_spec)
             print("destination: %s" % dest)
             print_difference(str(output_file_spec), str(dest), "destination: ")
             print("expected size:    %d" % output_file_size)
@@ -313,7 +313,7 @@ def run_test(testobj):
             if output_file_spec == "":
                 print("destination: %s" % dest)
     elif verbose:
-        print("expected   : %s" % output_file_spec)
+        print("expected:    %s" % output_file_spec)
         print("destination: %s" % dest)
         print("expected size:    %d" % output_file_size)
         print("destination size: %d" % dest_file_size)

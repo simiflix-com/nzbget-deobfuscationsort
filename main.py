@@ -32,8 +32,6 @@ from pathlib import Path
 import difflib
 import guessit
 
-from utilities import logdet, loginf, logwar, logerr
-
 sys.path.insert(0, dirname(__file__) + "/lib")
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -41,6 +39,35 @@ sys.stdout.reconfigure(encoding="utf-8")
 POSTPROCESS_SUCCESS = 93
 POSTPROCESS_NONE = 95
 POSTPROCESS_ERROR = 94
+
+def rm_file(file_path, dry_run=True):
+    if dry_run:
+        loginf(f"DRY RUN: Would remove file: {file_path}")
+    else:
+        loginf(f"Removing file: {file_path}")
+    os.remove(file_path)
+
+def rm_tree(dir_path, dry_run=True):
+    if dry_run:
+        loginf(f"DRY RUN: Would remove directory tree: {dir_path}")
+    else:
+        loginf(f"Removing directory tree: {dir_path}")
+    shutil.rmtree(dir_path)
+def log_to_nzbget(msg, dest="DETAIL"):
+    print(f"[{dest}] {msg}")
+
+def logdet(msg):
+    return log_to_nzbget(msg, "DETAIL")
+
+def loginf(msg):
+    return log_to_nzbget(msg, "INFO")
+
+def logwar(msg):
+    return log_to_nzbget(msg, "WARNING")
+
+def logerr(msg):
+    return log_to_nzbget(msg, "ERROR")
+
 
 # Check if directory still exist (for post-process again)
 if not os.path.exists(os.environ["NZBPP_DIRECTORY"]):
@@ -1268,10 +1295,11 @@ def construct_filename_glob(dest_path):
 
     return dest_path_glob
 
-def rename_overwrite_smaller(old, new):
-    old_size = os.path.getsize(old)
-    # Create a glob pattern to match all files with the same title and year
-    filename_glob = construct_filename_glob(Path(new))
+def rename_overwrite_smaller(downloaded_file_path, dest_file_path):
+    downloaded_file_size = downloaded_file_path.stat().st_size
+
+    # Create a glob pattern to match all files with the same title and year or episode details
+    filename_glob = construct_filename_glob(dest_file_path)
     if verbose:
         loginf('filename_glob: "{}"'.format(filename_glob))
     smallest_size = sys.maxsize
@@ -1279,39 +1307,41 @@ def rename_overwrite_smaller(old, new):
     smallest_file = None
     largest_file = None
     # Use the glob method to iterate through matching files
-    for match in filename_glob.parent.glob(filename_glob.name):
+    for matching_file_path in filename_glob.parent.glob(filename_glob.name):
         if verbose:
-            loginf('checking size of match: "{}"'.format(match))
-        match_size = os.path.getsize(match)
+            loginf('checking size of match: "{}"'.format(matching_file_path))
+        match_size = matching_file_path.stat().st_size
         if match_size > largest_size:
             largest_size = match_size
-            largest_file = match
+            largest_file = matching_file_path
             if verbose:
                 loginf('match with size {} is now the largest file: "{}"'.format(largest_size, largest_file))
         if match_size < smallest_size:
             smallest_size = match_size
-            smallest_file = match
+            smallest_file = matching_file_path
             if verbose:
                 loginf('match with size {} is now the smallest file: "{}"'.format(smallest_size, smallest_file))
     if smallest_file:
-        if smallest_file != new:
-            if old_size > largest_size:
-                if verbose:
-                    loginf('FIXME: should replace smallest file  "{}" matching glob "{}"'.format(smallest_file, filename_glob))
-                # FIXME: This is a dangerous operation. It should be disabled by default.
-                # os.remove(smallest_file)
-            # FIXME: This is a dangerous operation. It should be disabled by default.
-            # else:
-            #     if verbose:
-            #         loginf('remove downloaded directory: "{}"'.format(download_dir))
-            #     shutil.rmtree(download_dir)
-        else:
+        if downloaded_file_size < smallest_size:
+            # Remove the downloaded directory as the downloaded video file is smaller than the smallest existing file
             if verbose:
-                loginf('smallest file = new: "{}" = "{}"'.format(smallest_file, new))
+                loginf(f'Remove the downloaded directory "{download_dir}" '
+                        f'as its video file "{downloaded_file}" '
+                        f'is smaller than the smallest existing file "{smallest_file}"')
+            rm_tree(download_dir, preview)
+            return None
 
-    else:
         if verbose:
-            loginf('no file matching glob "{}"'.format(filename_glob))
+            loginf('Remove the smallest file "{smallest_file}" matching glob "{filename_glob}"')
+        rm_file(smallest_file, preview)
+
+    # Move the downloaded file to the destination path
+    if verbose:
+        loginf('Move the downloaded file "{downloaded_file_path}" to "{dest_file_path}"')
+    rename(str(downloaded_file_path), str(dest_file_path))
+    return dest_file_path
+
+
 
 # Flag indicating that anything was moved. Cleanup possible.
 files_moved = False
@@ -1322,51 +1352,53 @@ errors = False
 # Process all the files in download_dir and its subdirectories
 video_files = []
 
-for root, dirs, files in os.walk(download_dir):
-    for old_filename in files:
+for root, dirs, downloaded_files in os.walk(download_dir):
+    for downloaded_file in downloaded_files:
         try:
-            old_path = os.path.join(root, old_filename)
+            downloaded_file_path = Path(root) / downloaded_file
 
             # Check extension
-            ext = os.path.splitext(old_filename)[1].lower()
-            if ext not in video_extensions:
+            if downloaded_file_path.suffix.lower() not in video_extensions:
                 continue
 
             # Check minimum file size
-            if os.path.getsize(old_path) < min_size:
-                loginf("Skipping small: %s" % old_filename)
+            downloaded_file_size = downloaded_file_path.stat().st_size
+            if downloaded_file_size < min_size:
+                loginf(f'Skipping "{str(downloaded_file)}" as its size={downloaded_file_size} < {min_size}')
                 continue
 
             # This is our video file, we should process it
-            video_files.append(old_path)
+            video_files.append(downloaded_file_path)
 
         except Exception as e:
             errors = True
-            logerr("Failed: %s" % old_filename)
+            logerr("Failed: %s" % downloaded_file)
             logerr("Exception: %s" % e)
             traceback.print_exc()
 
 use_nzb_name = prefer_nzb_name and len(video_files) == 1
 
-for old_path in video_files:
+for video_file_path in video_files:
     try:
-        new_path = construct_path(old_path)
+        dest = construct_path(str(video_file_path))
 
-        if new_path:
+        if dest:
+            dest_path = Path(dest)
             # Move video file
             if overwrite_smaller:
-                rename_overwrite_smaller(old_path, new_path)
+                moved_path = rename_overwrite_smaller(video_file_path, dest_path)
+                files_moved = moved_path is not None
             else:
-                rename(old_path, new_path)
-            files_moved = True
+                rename(video_file_path, dest_path)
+                files_moved = True
             
-            # Move satellite files
-            if satellites:
-                move_satellites(old_path, new_path)
+            if files_moved and satellites:
+                # Move satellite files
+                move_satellites(video_file_path, dest_path)
 
     except Exception as e:
         errors = True
-        logerr("Failed: %s" % old_filename)
+        logerr(f'Failed renaming video file "{video_file_path}"')
         logerr("%s" % e)
         traceback.print_exc()
 
