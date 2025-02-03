@@ -2,7 +2,7 @@
 #
 # DeobfuscationSort post-processing script for NZBGet.
 #
-# Copyright (C) 2025 Simi Flix <simiflix@gmail.com>
+# Copyright (C) 2025 Simi Flix <simiflix.com@gmail.com>
 # Copyright (C) 2013-2020 Andrey Prygunkov <hugbug@users.sourceforge.net>
 # Copyright (C) 2024 Denis <denis@nzbget.com>
 #
@@ -21,54 +21,31 @@
 #
 
 
-from pathlib import Path
-import sys
-from os.path import dirname
-
-sys.path.insert(0, dirname(__file__) + "/lib")
-sys.stdout.reconfigure(encoding="utf-8")
-
 import os
+from os.path import dirname
+import sys
 import traceback
 import re
 import shutil
-import guessit
-import difflib
-import locale
-import glob
+from pathlib import Path
 
-try:
-    unicode
-except NameError:
-    unicode = str
+import difflib
+import guessit
+
+from utilities import logdet, loginf, logwar, logerr
+
+sys.path.insert(0, dirname(__file__) + "/lib")
+sys.stdout.reconfigure(encoding="utf-8")
 
 # Exit codes used by NZBGet
 POSTPROCESS_SUCCESS = 93
 POSTPROCESS_NONE = 95
 POSTPROCESS_ERROR = 94
 
-
-# Logging helpers for consistent message formatting
-def log_to_nzbget(msg, dest="DETAIL"):
-    print(f"[{dest}] {msg}")
-
-def logdet(msg):
-    return log_to_nzbget(msg, "DETAIL")
-
-def loginf(msg):
-    return log_to_nzbget(msg, "INFO")
-
-def logwar(msg):
-    return log_to_nzbget(msg, "WARNING")
-
-def logerr(msg):
-    return log_to_nzbget(msg, "ERROR")
-
-
 # Check if directory still exist (for post-process again)
 if not os.path.exists(os.environ["NZBPP_DIRECTORY"]):
-    print(
-        "[INFO] Destination directory %s doesn't exist, exiting"
+    loginf(
+        "Destination directory %s doesn't exist, exiting"
         % os.environ["NZBPP_DIRECTORY"]
     )
     sys.exit(POSTPROCESS_NONE)
@@ -79,8 +56,8 @@ if (
     or os.environ["NZBPP_PARSTATUS"] == "4"
     or os.environ["NZBPP_UNPACKSTATUS"] == "1"
 ):
-    print(
-        '[WARNING] Download of "%s" has failed, exiting' % (os.environ["NZBPP_NZBNAME"])
+    logwar(
+        'Download of "%s" has failed, exiting' % (os.environ["NZBPP_NZBNAME"])
     )
     sys.exit(POSTPROCESS_NONE)
 
@@ -110,8 +87,8 @@ required_options = (
 )
 for optname in required_options:
     if not optname.upper() in os.environ:
-        print(
-            "[ERROR] Option %s is missing in configuration file. Please check script settings"
+        logerr(
+            "Option %s is missing in configuration file. Please check script settings"
             % optname[6:]
         )
         sys.exit(POSTPROCESS_ERROR)
@@ -178,14 +155,14 @@ else:
         .*$ # Anything that is left is considered deobfuscation and will be stripped
     """, flags=re.VERBOSE | re.IGNORECASE)
 
-# if verbose:
-#     print('De-obfuscation regex: "{}"'.format(deobfuscate_re.pattern))
+if verbose:
+    loginf("De-obfuscation regex: \"%s\"" % deobfuscate_re.pattern)
 
 if preview:
-    print("[WARNING] *** PREVIEW MODE ON - NO CHANGES TO FILE SYSTEM ***")
+    logwar("*** PREVIEW MODE ON - NO CHANGES TO FILE SYSTEM ***")
 
 if verbose and force_tv:
-    print("[INFO] Forcing TV sorting (category: %s)" % category)
+    loginf("Forcing TV sorting (category: %s)" % category)
 
 # List of moved files (source path)
 moved_src_files = []
@@ -252,7 +229,7 @@ def optimized_move(old, new):
     try:
         os.rename(old, new)
     except OSError as ex:
-        print("[DETAIL] Rename failed ({}), performing copy: {}".format(ex, new))
+        logdet("Rename failed ({}), performing copy: {}".format(ex, new))
         shutil.copyfile(old, new)
         os.remove(old)
 
@@ -265,7 +242,7 @@ def rename(old, new):
         if overwrite and new not in moved_dst_files:
             os.remove(new)
             optimized_move(old, new)
-            print("[INFO] Overwrote: %s" % new)
+            loginf("Overwrote: %s" % new)
         else:
             # rename to filename.(2).ext, filename.(3).ext, etc.
             new = unique_name(new)
@@ -275,7 +252,7 @@ def rename(old, new):
             if not os.path.exists(os.path.dirname(new)):
                 os.makedirs(os.path.dirname(new))
             optimized_move(old, new)
-        print("[INFO] Moved: %s" % new)
+        loginf("Moved: %s" % new)
     moved_src_files.append(old)
     moved_dst_files.append(new)
     return new
@@ -286,7 +263,7 @@ def move_satellites(videofile, dest):
     and stored in root to the correct dest.
     """
     if verbose:
-        print("Move satellites for %s" % videofile)
+        loginf("Move satellites for %s" % videofile)
 
     root = os.path.dirname(videofile)
     destbasenm = os.path.splitext(dest)[0]
@@ -309,13 +286,13 @@ def move_satellites(videofile, dest):
                         subpart = "." + guess["subtitle_language"].alpha2
                     if verbose:
                         if subpart != "":
-                            print(
+                            loginf(
                                 "Satellite: %s is a subtitle [%s]"
                                 % (filename, guess["subtitle_language"])
                             )
                         else:
                             # English (or undetermined)
-                            print("Satellite: %s is a subtitle" % filename)
+                            loginf("Satellite: %s is a subtitle" % filename)
                 elif (fbase.lower() != base.lower()) and fextlo == ".nfo":
                     # Aggressive match attempt
                     if deep_scan:
@@ -327,13 +304,13 @@ def move_satellites(videofile, dest):
                     old = fpath
                     new = destbasenm + subpart + fext
                     if verbose:
-                        print("Satellite: %s" % os.path.basename(new))
+                        loginf("Satellite: %s" % os.path.basename(new))
                     rename(old, new)
 
 
 def deep_scan_nfo(filename, ratio=deep_scan_ratio):
     if verbose:
-        print("Deep scanning satellite: %s (ratio=%.2f)" % (filename, ratio))
+        loginf("Deep scanning satellite: %s (ratio=%.2f)" % (filename, ratio))
     best_guess = None
     best_ratio = 0.00
     try:
@@ -348,10 +325,10 @@ def deep_scan_nfo(filename, ratio=deep_scan_ratio):
                     diff = difflib.SequenceMatcher(None, word, nzb_name)
                     # Evaluate ratio against threshold and previous matches
                     if verbose:
-                        print("Tested: %s (ratio=%.2f)" % (word, diff.ratio()))
+                        loginf("Tested: %s (ratio=%.2f)" % (word, diff.ratio()))
                     if diff.ratio() >= ratio and diff.ratio() > best_ratio:
                         if verbose:
-                            print(
+                            loginf(
                                 "Possible match found: %s (ratio=%.2f)"
                                 % (word, diff.ratio())
                             )
@@ -362,7 +339,7 @@ def deep_scan_nfo(filename, ratio=deep_scan_ratio):
                 pass
         nfo.close()
     except IOError as e:
-        print("[ERROR] %s" % str(e))
+        logerr("%s" % str(e))
     return best_guess
 
 
@@ -371,7 +348,7 @@ def cleanup_download_dir():
     (important = size >= min_size)
     """
     if verbose:
-        print("Cleanup")
+        loginf("Cleanup")
 
     # Check if there are any big files remaining
     for root, dirs, files in os.walk(download_dir):
@@ -381,9 +358,7 @@ def cleanup_download_dir():
             if os.path.getsize(path) >= min_size and (
                 not preview or path not in moved_src_files
             ):
-                print(
-                    "[WARNING] Skipping clean up due to large files remaining in the directory"
-                )
+                logwar("Skipping clean up due to large files remaining in the directory")
                 return
 
     # Now delete all files with nice logging
@@ -393,10 +368,10 @@ def cleanup_download_dir():
             if not preview or path not in moved_src_files:
                 if not preview:
                     os.remove(path)
-                print("[INFO] Deleted: %s" % path)
+                loginf("Deleted: %s" % path)
     if not preview:
         shutil.rmtree(download_dir)
-    print("[INFO] Deleted: %s" % download_dir)
+    loginf("Deleted: %s" % download_dir)
 
 
 STRIP_AFTER = ("_", ".", "-")
@@ -446,7 +421,7 @@ def path_subst(path, mapping):
                     n += len(key) - 1
                     result = value
                     if msg:
-                        print("[WARNING] specifier %s is deprecated, %s" % (key, msg))
+                        logwar("specifier %s is deprecated, %s" % (key, msg))
                     break
         newpath.append(result)
         n += 1
@@ -463,10 +438,10 @@ def get_deobfuscated_dirname(dirname, deobfuscate_re, name=None):
         dirname_deobfuscated = re.sub(deobfuscate_re, r"\1", dirname_clean)
         dirname = dirname_deobfuscated
         if verbose:
-            print('De-obfuscated NZB dirname: "{}" --> "{}"'.format(dirname_clean, dirname_deobfuscated))
+            loginf('De-obfuscated NZB dirname: "{}" --> "{}"'.format(dirname_clean, dirname_deobfuscated))
     else:
         if verbose:
-            print("Cannot de-obfuscate NZB dirname: "
+            logerr("Cannot de-obfuscate NZB dirname: "
                   'invalid value for configuration value "DeobfuscateWords": "{}"'
                   .format(deobfuscate_words))
 
@@ -591,17 +566,9 @@ def get_titles(name, titleing=False):
 
 def titler(p):
     """title() replacement
-    Python's title() fails with Latin-1, so use Unicode detour.
+    Python's title()
     """
-    if isinstance(p, unicode):
-        return p.title()
-    elif gUTF:
-        try:
-            return p.decode("utf-8").title().encode("utf-8")
-        except:
-            return p.decode("latin-1", "replace").title().encode("latin-1", "replace")
-    else:
-        return p.decode("latin-1", "replace").title().encode("latin-1", "replace")
+    return p.title()
 
 
 def replace_word(input, one, two):
@@ -680,19 +647,6 @@ def strip_folders(path):
         return x
 
     return os.path.normpath("/".join([strip_all(x) for x in f]))
-
-
-gUTF = False
-try:
-    if sys.platform == "darwin":
-        gUTF = True
-    else:
-        gUTF = locale.getlocale()[1] == "UTF-8"
-except:
-    # Incorrect locale implementation, assume the worst
-    gUTF = False
-
-# END * From SABnzbd+ * END
 
 
 def add_common_mapping(old_filename, guess, mapping):
@@ -960,21 +914,21 @@ def os_path_split(path):
     return parts
 
 
-def deobfuscate_path(filename):
+def strip_useless_parts(filename):
     start = os.path.dirname(download_dir)
     new_name = filename[len(start) + 1 :]
     if verbose:
-        print("stripped filename: %s" % new_name)
+        loginf("stripped filename: %s" % new_name)
 
     parts = os_path_split(new_name)
     if verbose:
-        print(parts)
+        loginf(parts)
 
     part_removed = 0
     for x in range(0, len(parts) - 1):
         fn = parts[x]
         if fn.find(".") == -1 and fn.find("_") == -1 and fn.find(" ") == -1:
-            print(
+            loginf(
                 "Detected obfuscated directory name %s, removing from guess path" % fn
             )
             parts[x] = None
@@ -982,7 +936,7 @@ def deobfuscate_path(filename):
 
     fn = os.path.splitext(parts[len(parts) - 1])[0]
     if fn.find(".") == -1 and fn.find("_") == -1 and fn.find(" ") == -1:
-        print(
+        loginf(
             "Detected obfuscated filename %s, removing from guess path"
             % os.path.basename(filename)
         )
@@ -995,7 +949,7 @@ def deobfuscate_path(filename):
             if parts[x] != None:
                 new_name = os.path.join(new_name, parts[x])
     else:
-        print("All file path parts are obfuscated, using obfuscated NZB-Name")
+        loginf("All file path parts are obfuscated, using obfuscated NZB-Name")
         new_name = os.path.basename(download_dir) + os.path.splitext(filename)[1]
 
     return new_name
@@ -1008,7 +962,7 @@ def remove_year(title):
         m = re.compile(r"..*((19|20)\d\d)").search(title)
     if m:
         if verbose:
-            print("Removing year from series name")
+            loginf("Removing year from series name")
         title = title.replace(m.group(1), "").strip()
     return title
 
@@ -1020,7 +974,7 @@ def apply_dnzb_headers(guess):
     if dnzb_proper_name != "":
         dnzb_used = True
         if verbose:
-            print("Using DNZB-ProperName")
+            loginf("Using DNZB-ProperName")
         if guess["vtype"] == "series":
             proper_name = dnzb_proper_name
             if not series_year:
@@ -1032,19 +986,19 @@ def apply_dnzb_headers(guess):
     if dnzb_episode_name != "" and guess["vtype"] == "series":
         dnzb_used = True
         if verbose:
-            print("Using DNZB-EpisodeName")
+            loginf("Using DNZB-EpisodeName")
         guess["episode_title"] = dnzb_episode_name
 
     if dnzb_movie_year != "":
         dnzb_used = True
         if verbose:
-            print("Using DNZB-MovieYear")
+            loginf("Using DNZB-MovieYear")
         guess["year"] = dnzb_movie_year
 
     if dnzb_more_info != "":
         dnzb_used = True
         if verbose:
-            print("Using DNZB-MoreInfo")
+            loginf("Using DNZB-MoreInfo")
         if guess["type"] == "movie":
             regex = re.compile(
                 r"^http://www.imdb.com/title/(tt[0-9]+)/$", re.IGNORECASE
@@ -1055,7 +1009,7 @@ def apply_dnzb_headers(guess):
                 guess["cpimdb"] = "cp(" + guess["imdb"] + ")"
 
     if verbose and dnzb_used:
-        print(guess)
+        loginf(guess)
 
 
 def year_and_season_equal(guess):
@@ -1081,10 +1035,10 @@ def guess_info(filename):
 
     if use_nzb_name:
         if verbose:
-            print("Using NZB-Name")
+            loginf("Using NZB-Name")
         guessfilename = os.path.basename(download_dir) + os.path.splitext(filename)[1]
     else:
-        guessfilename = deobfuscate_path(filename)
+        guessfilename = strip_useless_parts(filename)
 
     # workaround for titles starting with numbers (which guessit has problems with) (part 1)
     path, tmp_filename = os.path.split(guessfilename)
@@ -1093,14 +1047,15 @@ def guess_info(filename):
         guessfilename = os.path.join(path, "T" + tmp_filename)
 
     if verbose:
-        print("Guessing: %s" % guessfilename)
+        loginf("Guessing: %s" % guessfilename)
 
+    # Use guessit directly as Python 3 handles Unicode by default
     guess = guessit.api.guessit(
-        unicode(guessfilename), {"allowed_languages": [], "allowed_countries": []}
+        guessfilename, {"allowed_languages": [], "allowed_countries": []}
     )
 
     if verbose:
-        print(guess)
+        loginf(guess)
 
     # workaround for titles starting with numbers (part 2)
     if pad_start_digits:
@@ -1108,7 +1063,7 @@ def guess_info(filename):
         if guess["title"] == "":
             guess["title"] = os.path.splitext(os.path.basename(guessfilename))[0][1:]
             if verbose:
-                print("use filename as title for recovery")
+                loginf("use filename as title for recovery")
 
     # fix some strange guessit guessing:
     # if guessit doesn't find a year in the file name it thinks it is episode,
@@ -1117,14 +1072,14 @@ def guess_info(filename):
     if is_movie(guess):
         guess["type"] = "movie"
         if verbose:
-            print("episode without episode-number is a movie")
+            loginf("episode without episode-number is a movie")
 
     # treat parts as episodes ("Part.2" or "Part.II")
     if guess.get("type") == "movie" and guess.get("part") != None:
         guess["type"] = "episode"
         guess["episode"] = guess.get("part")
         if verbose:
-            print("treat parts as episodes")
+            loginf("treat parts as episodes")
 
     # add season number if not present
     if guess["type"] == "episode" and (
@@ -1132,7 +1087,7 @@ def guess_info(filename):
     ):
         guess["season"] = 1
         if verbose:
-            print("force season 1")
+            loginf("force season 1")
 
     # detect if year is part of series name
     if guess["type"] == "episode":
@@ -1145,7 +1100,7 @@ def guess_info(filename):
             ):
                 guess["title"] += " " + str(guess["year"])
                 if verbose:
-                    print("year is part of title")
+                    loginf("year is part of title")
         else:
             guess["title"] = remove_year(guess["title"])
 
@@ -1166,10 +1121,10 @@ def guess_info(filename):
         apply_dnzb_headers(guess)
 
     if verbose:
-        print("Type: %s" % guess["vtype"])
+        loginf("Type: %s" % guess["vtype"])
 
     if verbose:
-        print(guess)
+        loginf(guess)
 
     return guess
 
@@ -1178,7 +1133,7 @@ def construct_path(filename):
     """Parses the filename and generates new name for renaming"""
 
     if verbose:
-        print("filename: %s" % filename)
+        loginf("filename: %s" % filename)
 
     guess = guess_info(filename)
     type = guess.get("vtype")
@@ -1203,7 +1158,7 @@ def construct_path(filename):
         add_movies_mapping(guess, mapping)
     else:
         if verbose:
-            print("Could not determine video type for %s" % filename)
+            loginf("Could not determine video type for %s" % filename)
         return None
 
     if dest_dir == "":
@@ -1219,13 +1174,13 @@ def construct_path(filename):
     sorter = format.replace("\\", "/")
 
     if verbose:
-        print("format: %s" % sorter)
+        loginf("format: %s" % sorter)
 
     # Replace elements
     path = path_subst(sorter, mapping)
 
     if verbose:
-        print("path after subst: %s" % path)
+        loginf("path after subst: %s" % path)
 
     # Cleanup file name
     old_path = ""
@@ -1251,16 +1206,16 @@ def construct_path(filename):
     dest_dir = os.path.normpath(dest_dir)
 
     if verbose:
-        print("path after cleanup: %s" % path)
+        loginf("path after cleanup: %s" % path)
 
     new_path = os.path.join(dest_dir, *path.split(os.sep))
 
     if verbose:
-        print("destination path: %s" % new_path)
+        loginf("destination path: %s" % new_path)
 
     if filename.upper() == new_path.upper():
         if verbose:
-            print("Destination path equals filename  - return None")
+            loginf("Destination path equals filename  - return None")
         return None
 
     return new_path
@@ -1379,7 +1334,7 @@ for root, dirs, files in os.walk(download_dir):
 
             # Check minimum file size
             if os.path.getsize(old_path) < min_size:
-                print("[INFO] Skipping small: %s" % old_filename)
+                loginf("Skipping small: %s" % old_filename)
                 continue
 
             # This is our video file, we should process it
@@ -1387,8 +1342,8 @@ for root, dirs, files in os.walk(download_dir):
 
         except Exception as e:
             errors = True
-            print("[ERROR] Failed: %s" % old_filename)
-            print("[ERROR] Exception: %s" % e)
+            logerr("Failed: %s" % old_filename)
+            logerr("Exception: %s" % e)
             traceback.print_exc()
 
 use_nzb_name = prefer_nzb_name and len(video_files) == 1
@@ -1403,15 +1358,16 @@ for old_path in video_files:
                 rename_overwrite_smaller(old_path, new_path)
             else:
                 rename(old_path, new_path)
-
+            files_moved = True
+            
             # Move satellite files
             if satellites:
                 move_satellites(old_path, new_path)
 
     except Exception as e:
         errors = True
-        print("[ERROR] Failed: %s" % old_filename)
-        print("[ERROR] %s" % e)
+        logerr("Failed: %s" % old_filename)
+        logerr("%s" % e)
         traceback.print_exc()
 
 # Inform NZBGet about new destination path
@@ -1425,7 +1381,7 @@ for filename in moved_dst_files:
         finaldir += dir
 
 if finaldir != "":
-    print("[NZB] FINALDIR=%s" % finaldir)
+    loginf("[NZB] FINALDIR=%s" % finaldir)
 
 # Cleanup if:
 # 1) files were moved AND

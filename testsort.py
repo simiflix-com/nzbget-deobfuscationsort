@@ -142,6 +142,21 @@ def get_test_dir_path_file(file_path):
     return Path(TEST_DIR) / relative_base_path / file_path.name
 
 
+def get_test_file_parent(file_path):
+    # Ensure the argument is a Path object
+    if not isinstance(file_path, Path):
+        file_path = Path(file_path)
+
+    relative_base_path = None
+    if file_path.is_absolute():
+        # Convert absolute file path to relative
+        relative_base_path = file_path.relative_to('/').parent
+    else:
+        # Use the parent directory of the relative file path
+        relative_base_path = file_path.parent
+    return relative_base_path
+
+
 def create_test_file(test_file, test_file_size):
     """Creates a test file with the specified size in the appropriate directory."""
     
@@ -181,14 +196,14 @@ def execute_deobfuscation_sort(test_file, overwrite_smaller=False):
     dest = None  # Initialize destination variable
     try:
         if ret == POSTPROCESS_SUCCESS:
-            match = re.search(r"^destination path: (.+)", out.decode(), re.MULTILINE)
+            match = re.search(r"^(?:\[[A-Z]+\] )?destination path: (.+)", out.decode(), re.MULTILINE)
             if match:
                 dest_path = Path(match.group(1))
                 logging.debug(f"Extracted destination path: {dest_path}")
 
                 # Ensure path is inside TEST_DIR before making it relative
                 if dest_path.is_relative_to(TEST_DIR):  # Python 3.9+
-                    dest = dest_path.relative_to(TEST_DIR).as_posix()
+                    dest = (Path("/") / dest_path.relative_to(TEST_DIR)).as_posix()
                 else:
                     raise Exception(f"Destination path {dest_path} is not inside {TEST_DIR}.")
 
@@ -201,6 +216,10 @@ def execute_deobfuscation_sort(test_file, overwrite_smaller=False):
 
         else:
             raise Exception(f"Unexpected return code: {ret}")
+        
+        assert(Path(dest).is_absolute())
+        test_dir_dest_path = get_test_dir_path_file(dest)
+        assert(test_dir_dest_path.is_file())
 
     except Exception as e:
         logging.exception("An error occurred while processing the destination path.")
@@ -225,12 +244,9 @@ def run_test(testobj):
 
     # Get the directory of the input file
     # This is used to set the NZBPP_DIRECTORY environment variable
-    # Note that the input file is relative to the root directory of the test data
-    # and that the test data is relative to the root directory of the script
-    # So we need to convert the input file to a relative path in case it's an absolute path
-    input_test_dir = get_test_dir_path_file(input_file_path)
-    if input_test_dir.parent:
-        os.environ["NZBPP_DIRECTORY"] = str(input_test_dir.parent)
+    input_test_dir = get_test_file_parent(input_file_spec)
+    if input_test_dir:
+        os.environ["NZBPP_DIRECTORY"] = str(input_test_dir)
         # os.environ["NZBPP_FILENAME"] = input_file_name
         if verbose:
             print("Using NZB directory: %s" % os.environ["NZBPP_DIRECTORY"])
