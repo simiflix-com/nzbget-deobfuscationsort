@@ -373,19 +373,6 @@
             ]
         },
         {
-            "name": "OverwriteSmaller",
-            "displayName": "OverwriteSmaller",
-            "value": "yes",
-            "description": [
-                "When enabled, the script replaces older or smaller files with the newly",
-                "processed file if it is larger in size."
-            ],
-            "select": [
-                "yes",
-                "no"
-            ]
-        },
-        {
             "name": "Cleanup",
             "displayName": "Cleanup",
             "value": "yes",

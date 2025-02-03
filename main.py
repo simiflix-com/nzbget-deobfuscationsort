@@ -142,7 +142,6 @@ satellite_extensions = (
 min_size = int(os.environ["NZBPO_MINSIZE"])
 min_size <<= 20
 overwrite = os.environ["NZBPO_OVERWRITE"] == "yes"
-overwrite_smaller = os.environ["NZBPO_OVERWRITESMALLER"] == "yes"
 cleanup = os.environ["NZBPO_CLEANUP"] == "yes"
 preview = os.environ["NZBPO_PREVIEW"] == "yes"
 verbose = os.environ["NZBPO_VERBOSE"] == "yes"
@@ -1295,53 +1294,6 @@ def construct_filename_glob(dest_path):
 
     return dest_path_glob
 
-def rename_overwrite_smaller(downloaded_file_path, dest_file_path):
-    downloaded_file_size = downloaded_file_path.stat().st_size
-
-    # Create a glob pattern to match all files with the same title and year or episode details
-    filename_glob = construct_filename_glob(dest_file_path)
-    if verbose:
-        loginf('filename_glob: "{}"'.format(filename_glob))
-    smallest_size = sys.maxsize
-    largest_size = 0
-    smallest_file = None
-    largest_file = None
-    # Use the glob method to iterate through matching files
-    for matching_file_path in filename_glob.parent.glob(filename_glob.name):
-        if verbose:
-            loginf('checking size of match: "{}"'.format(matching_file_path))
-        match_size = matching_file_path.stat().st_size
-        if match_size > largest_size:
-            largest_size = match_size
-            largest_file = matching_file_path
-            if verbose:
-                loginf('match with size {} is now the largest file: "{}"'.format(largest_size, largest_file))
-        if match_size < smallest_size:
-            smallest_size = match_size
-            smallest_file = matching_file_path
-            if verbose:
-                loginf('match with size {} is now the smallest file: "{}"'.format(smallest_size, smallest_file))
-    if smallest_file:
-        if downloaded_file_size < smallest_size:
-            # Remove the downloaded directory as the downloaded video file is smaller than the smallest existing file
-            if verbose:
-                loginf(f'Remove the downloaded directory "{download_dir}" '
-                        f'as its video file "{downloaded_file}" '
-                        f'is smaller than the smallest existing file "{smallest_file}"')
-            rm_tree(download_dir, preview)
-            return None
-
-        if verbose:
-            loginf('Remove the smallest file "{smallest_file}" matching glob "{filename_glob}"')
-        rm_file(smallest_file, preview)
-
-    # Move the downloaded file to the destination path
-    if verbose:
-        loginf('Move the downloaded file "{downloaded_file_path}" to "{dest_file_path}"')
-    rename(str(downloaded_file_path), str(dest_file_path))
-    return dest_file_path
-
-
 
 # Flag indicating that anything was moved. Cleanup possible.
 files_moved = False
@@ -1385,12 +1337,8 @@ for video_file_path in video_files:
         if dest:
             dest_path = Path(dest)
             # Move video file
-            if overwrite_smaller:
-                moved_path = rename_overwrite_smaller(video_file_path, dest_path)
-                files_moved = moved_path is not None
-            else:
-                rename(video_file_path, dest_path)
-                files_moved = True
+            rename(video_file_path, dest_path)
+            files_moved = True
             
             if files_moved and satellites:
                 # Move satellite files

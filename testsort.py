@@ -100,7 +100,6 @@ def set_defaults():
     os.environ["NZBPO_RELEASEGROUPS"] = "3DM,AJP69,BHDStudio,BMF,BTN,BV,BeyondHD,CJ,CLASS,CMRG,CODEX,CONSPIR4CY,CRX,CRiSC,Chotab,CtrlHD,D-Z0N3,D-Z0N3,D-Z0N3,DEViANCE,DON,Dariush,DrinkOrDie,E.N.D,E1,EA,EDPH,ESiR,EVO,EVO,EViLiSO,EXCiSION,EbP,Echelon,FAiRLiGHT,FLUX,FTW-HD,FilmHD,FoRM,FraMeSToR,FraMeSToR,GALAXY,GS88,Geek,HANDJOB,HATRED,HDMaNiAcS,HYBRID,HiDt,HiFi,HiP,Hoodlum,IDE,KASHMiR,KRaLiMaRKo,Kalisto,LEGi0N,LiNG,LoRD,MZABI,Myth,NCmt,NTb,NTb,NyHD,ORiGEN,P0W4HD,PARADOX,PTer,Penumbra,Positive,RELOADED,REVOLT,Radium,Risciso,SA89,SKIDROW,SMURF,STEAMPUNKS,SaNcTi,SbR,SiMPLE,TBB,TDD,TEPES,TayTo,ThD,VLAD,ViTALiTY,VietHD,W4NK3R,WMING,ZIMBO,ZQ,c0ke,de[42],decibeL,hdalx,iFT,iON,luvBB,maVen,nmd,playHD,playWEB"
     os.environ["NZBPO_SERIESYEAR"] = "yes"
     os.environ["NZBPO_OVERWRITE"] = "no"
-    os.environ["NZBPO_OVERWRITESMALLER"] = "no"
     os.environ["NZBPO_CLEANUP"] = "no"
 
     # properties of nzb-file
@@ -171,15 +170,10 @@ def create_test_file(test_file, test_file_size):
         print(f"Created file: {test_file} with size {test_file_size}")
 
 
-def execute_deobfuscation_sort(test_file, overwrite_smaller=False):
+def execute_deobfuscation_sort(test_file):
     """Executes the main.py script for a given file."""
     os.environ["NZBPP_DIRECTORY"] = str(test_file.parent)
     os.environ["NZBPP_NZBFILENAME"] = test_file.name
-    # Sice we use `execute_deobfuscation_sort` for both existing and input files,
-    # we need to set the `NZBPO_OVERWRITESMALLER` environment variable accordingly
-    # For existing files, we set it to "no"
-    # For input files, we set it to "yes" if `overwrite_smaller` is True
-    os.environ["NZBPO_OVERWRITESMALLER"] = "yes" if overwrite_smaller else "no"
     proc = subprocess.Popen(
         [get_python(), DEOBFUSCATION_SORT_ENTRYPOINT],
         stdout=subprocess.PIPE,
@@ -196,7 +190,7 @@ def execute_deobfuscation_sort(test_file, overwrite_smaller=False):
     dest = None  # Initialize destination variable
     try:
         if ret == POSTPROCESS_SUCCESS:
-            match = re.search(r"^(?:\[[A-Z]+\] )?destination path: (.+)", out.decode())
+            match = re.search(r"^(?:\[[A-Z]+\] )?destination path: (.+)", out.decode(), re.MULTILINE)
             if match:
                 dest_path = Path(match.group(1))
                 logging.debug(f"Extracted destination path: {dest_path}")
@@ -208,11 +202,10 @@ def execute_deobfuscation_sort(test_file, overwrite_smaller=False):
                     raise Exception(f"Destination path {dest_path} is not inside {TEST_DIR}.")
 
         elif ret == POSTPROCESS_NONE:
-            try:
-                dest = (Path("/") / test_file.relative_to(TEST_DIR)).as_posix()
-            except ValueError as e:
-                logging.error(f"Failed to compute relative path for {test_file}: {e}")
-                dest = test_file.as_posix()  # Fallback to absolute path
+            dest = (Path("/") / test_file.relative_to(TEST_DIR)).as_posix()
+
+        elif ret == POSTPROCESS_ERROR:
+            raise Exception(f"DeobfuscationSort returned error\n\n{out.decode()}\n\n{err.decode()}")
 
         else:
             raise Exception(f"Unexpected return code: {ret}")
@@ -222,9 +215,8 @@ def execute_deobfuscation_sort(test_file, overwrite_smaller=False):
         assert(test_dir_dest_path.is_file())
 
     except Exception as e:
-        logging.exception("An error occurred while processing the destination path.")
+        logging.exception("An error occurred while processing the destination path.", exc_info=e)
 
-    # Unified return statement
     return out, err, ret, dest
 
 
@@ -251,45 +243,18 @@ def run_test(testobj):
         if verbose:
             print("Using NZB directory: %s" % os.environ["NZBPP_DIRECTORY"])
 
-    # The size of the input file only matters if OverwriteSmaller is enabled
-    # Hence we default to FILESIZE_DEFAULT
     input_file_size = testobj.get("INPUTFILESIZE", FILESIZE_DEFAULT)
     output_file_size = testobj.get("OUTPUTFILESIZE", FILESIZE_DEFAULT)
 
-    existing_file = None
-    existing_file_size = 0
-    existing_file_dest = None
     success = False
-    overwrite_smaller = testobj.get("NZBPO_OVERWRITESMALLER", "no") == "yes"
-    if overwrite_smaller:
-        # Validate OverwriteSmaller functionality
-        # Create existing and input file with specified sizes
-        existing_file = get_test_dir_path_file(testobj.get("EXISTINGFILE", ""))
-        existing_file_size = testobj.get("EXISTINGFILESIZE", -1)
-        create_test_file(existing_file, existing_file_size)
-        # Run deobfuscation sort on the existing file
-        out, err, ret, existing_file_dest = execute_deobfuscation_sort(existing_file, False)
-        existing_file_dest_path = None
-        if existing_file_dest:
-            existing_file_dest_path = get_test_dir_path_file(existing_file_dest)
-        else:
-            # No destination file was returned, so the existing file was not deobfuscated
-            # In this case, the existing file is the destination file
-            existing_file_dest_path = existing_file
-
-        existing_file_dest_size = existing_file_dest_path.stat().st_size
-        assert existing_file_size == existing_file_dest_size
 
     # Create input file
     create_test_file(input_file_path, input_file_size)
 
     # Run deobfuscation sort on the input file
-    out, err, ret, dest = execute_deobfuscation_sort(input_file_path, overwrite_smaller)
+    out, err, ret, dest = execute_deobfuscation_sort(input_file_path)
 
-    dest_path = get_test_dir_path_file(dest)
-
-    dest_file_size = dest_path.stat().st_size
-    success = (dest == output_file_spec) and (dest_file_size == output_file_size)
+    success = dest == output_file_spec
 
     if success:
         print("%s: SUCCESS" % testobj["id"])
@@ -304,8 +269,6 @@ def run_test(testobj):
             print("expected:    %s" % output_file_spec)
             print("destination: %s" % dest)
             print_difference(str(output_file_spec), str(dest), "destination: ")
-            print("expected size:    %d" % output_file_size)
-            print("destination size: %d" % dest_file_size)
             print("********************************************************")
             sys.exit(1)
         else:
@@ -315,8 +278,6 @@ def run_test(testobj):
     elif verbose:
         print("expected:    %s" % output_file_spec)
         print("destination: %s" % dest)
-        print("expected size:    %d" % output_file_size)
-        print("destination size: %d" % dest_file_size)
 
 testdata = json.load(open(ROOT_DIR + "/testdata.json", encoding="UTF-8"))
 for testobj in testdata:
