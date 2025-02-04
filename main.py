@@ -40,19 +40,6 @@ POSTPROCESS_SUCCESS = 93
 POSTPROCESS_NONE = 95
 POSTPROCESS_ERROR = 94
 
-def rm_file(file_path, dry_run=True):
-    if dry_run:
-        loginf(f"DRY RUN: Would remove file: {file_path}")
-    else:
-        loginf(f"Removing file: {file_path}")
-    os.remove(file_path)
-
-def rm_tree(dir_path, dry_run=True):
-    if dry_run:
-        loginf(f"DRY RUN: Would remove directory tree: {dir_path}")
-    else:
-        loginf(f"Removing directory tree: {dir_path}")
-    shutil.rmtree(dir_path)
 def log_to_nzbget(msg, dest="DETAIL"):
     print(f"[{dest}] {msg}")
 
@@ -1252,54 +1239,6 @@ def construct_path(filename):
         return None
 
     return new_path
-
-
-def construct_filename_glob(dest_path):
-    """Parses the destination path and generates a glob pattern to detect existing files"""
-
-    dest_file = str(dest_path)
-    # Get the filename component of the destination path without the directory and extension
-    dest_filename = dest_path.stem
-
-    guess = guess_info(dest_file)
-    # properties = guessit.api.properties(unicode(dest_file))
-
-    identifying_filename_components = [
-        "title",
-        "season",
-        "episode",
-        "year",
-        "edition",
-        "part",
-        "date",
-    ]
-  
-    # Replace non-identifying components by wildcard character `*`
-    filename_glob = ""
-    identifying_spans = []
-    for component in identifying_filename_components:
-        value = guess.get(component, None)
-        if value: 
-            match = re.search(re.escape(str(value)), dest_filename, re.IGNORECASE)
-            if match:
-                identifying_spans.append(match.span())
-    
-    last_end = 0
-    for span in sorted(identifying_spans, key=lambda x: x[0]):
-        # Add the part of the destination filename referenced by the span
-        # If there is a gap between the last span and this one, add a wildcard character
-        if span[0] > last_end:
-            filename_glob += "*" # + dest_filename[last_end:span[0]]
-        filename_glob += dest_filename[span[0]:span[1]]
-        last_end = span[1]
-    if last_end < len(dest_filename):
-        filename_glob += "*" # + dest_filename[last_end:]
-    
-    dest_path_glob = dest_path.parent / (filename_glob + dest_path.suffix)
-
-    loginf(f'construct_filename_glob("{dest_path}"): "{dest_path_glob}"')
-
-    return dest_path_glob
 
 
 # Flag indicating that anything was moved. Cleanup possible.
