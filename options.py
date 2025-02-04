@@ -151,9 +151,6 @@ class Options:
                 flags=re.VERBOSE | re.IGNORECASE,
             )
 
-        if self.verbose:
-            loginf('De-obfuscation regex: "%s"' % self.deobfuscate_re.pattern)
-
         if self.preview:
             logwar("*** PREVIEW MODE ON - NO CHANGES TO FILE SYSTEM ***")
 

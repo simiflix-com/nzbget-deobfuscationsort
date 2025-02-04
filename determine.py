@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-from nzbget_utils import loginf, logerr, logwar
+from nzbget_utils import logerr, logwar, loginf, logdet
 from options import Options
 
 import sys
@@ -69,26 +69,41 @@ class Determine:
             map(lambda x: ".".join(x) if isinstance(x, list) else str(x), newpath)
         )
 
-    def get_deobfuscated_dirname(self, dirname, deobfuscate_re, name=None):
+    def get_deobfuscated_dirname(self, dirname, name=None):
+        """
+        Deobfuscate the directory name and properly case all terms, including
+        quality identifiers and release terms.
+
+        Args:
+            dirname (str): The original directory name to be deobfuscated.
+            name (str, optional): The reference name used for title matching.
+
+        Returns:
+            tuple: A tuple containing four variations of the directory name:
+                - dirname (str): The deobfuscated and properly cased directory name.
+                - dots (str): The dirname with spaces replaced by dots.
+                - underscores (str): The dirname with spaces replaced by underscores.
+                - spaces (str): The dirname with dots and underscores replaced by spaces.
+        """
         dirname_clean = dirname.strip()
         dirname = dirname_clean
-        if deobfuscate_re:
-            dirname_deobfuscated = re.sub(deobfuscate_re, r"\1", dirname_clean)
+
+        # Apply deobfuscation regex if provided
+        if self.options.deobfuscate_re:
+            dirname_deobfuscated = re.sub(
+                self.options.deobfuscate_re, r"\1", dirname_clean
+            )
             dirname = dirname_deobfuscated
-            if self.options.verbose:
-                loginf(
-                    'De-obfuscated NZB dirname: "{}" --> "{}"'.format(
-                        dirname_clean, dirname_deobfuscated
-                    )
-                )
+            logdet(
+                f'De-obfuscated NZB dirname: "{dirname_clean}" --> "{dirname_deobfuscated}"'
+            )
         else:
-            if self.options.verbose:
-                logerr(
-                    "Cannot de-obfuscate NZB dirname: "
-                    'invalid value for configuration value "DeobfuscateWords": "{}"'.format(
-                        self.options.deobfuscate_words
-                    )
+            logerr(
+                "Cannot de-obfuscate NZB dirname: "
+                'invalid value for configuration value "DeobfuscateWords": "{}"'.format(
+                    self.options.deobfuscate_words
                 )
+            )
 
         if name:
             # Determine if file name is likely to be properly cased
@@ -281,7 +296,7 @@ class Determine:
         - decade2 = "2020" (4-digit decade)
 
         Args:
-            year (Union[str, int]): The year to process
+            year (str or int): The year to process
 
         Returns:
             tuple: Two variations of the decade:
@@ -305,21 +320,25 @@ class Determine:
 
     @staticmethod
     def to_lowercase(path):
-        """Lowercases any characters enclosed in {}"""
+        """
+        Lowercases any characters enclosed in {}.
+        """
         while True:
             m = Determine._RE_LOWERCASE.search(path)
             if not m:
                 break
             path = path[: m.start()] + m.group(1).lower() + path[m.end() :]
 
-        # just incase
+        # Just in case
         path = path.replace("{", "")
         path = path.replace("}", "")
         return path
 
     @staticmethod
     def to_uppercase(path):
-        """Lowercases any characters enclosed in {{}}"""
+        """
+        Uppercases any characters enclosed in {{}}.
+        """
         while True:
             m = Determine._RE_UPPERCASE.search(path)
             if not m:
@@ -329,7 +348,9 @@ class Determine:
 
     @staticmethod
     def strip_folders(path):
-        """Return 'path' without leading and trailing strip-characters in each element"""
+        """
+        Return 'path' without leading and trailing strip-characters in each element.
+        """
         f = path.strip("/").split("/")
 
         # For path beginning with a slash, insert empty element to prevent loss
@@ -337,21 +358,30 @@ class Determine:
             f.insert(0, "")
 
         def strip_all(x):
-            """Strip all leading/trailing underscores and hyphens
-            also dots for Windows
+            """
+            Strip all leading/trailing underscores and hyphens
+            also dots for Windows.
             """
             old_name = ""
             while old_name != x:
                 old_name = x
                 for strip_char in Determine._STRIP_AFTER:
                     x = x.strip().strip(strip_char)
-
             return x
 
         return os.path.normpath("/".join([strip_all(x) for x in f]))
 
     @staticmethod
     def os_path_split(path):
+        """
+        Splits a path into its components.
+
+        Args:
+            path (str): The path to split.
+
+        Returns:
+            list: A list of path components.
+        """
         parts = []
         while True:
             newpath, tail = os.path.split(path)
@@ -363,6 +393,37 @@ class Determine:
             path = newpath
         parts.reverse()
         return parts
+
+    @staticmethod
+    def format_matches_dict(matches_dict):
+        """
+        Formats a MatchesDict into a multi-line string with aligned key-value pairs.
+
+        Keys are right-aligned and the values are left aligned.
+
+        Args:
+            matches_dict (dict): The MatchesDict object to format.
+
+        Returns:
+            str: A formatted multi-line string of key-value pairs.
+        """
+        if not matches_dict:
+            return ""
+
+        # Determine the maximum key length.
+        max_key_length = max(len(str(key)) for key in matches_dict.keys())
+
+        formatted_lines = []
+        # Use the "Open Box" (U+2423) as a fill character.
+        non_whitespace_space = "\u2423"
+        for key, value in matches_dict.items():
+            # Format each line so that the colon is placed directly after the key,
+            # and the value is aligned in a consistent column.
+            formatted_lines.append(
+                f"{str(key):{non_whitespace_space}>{max_key_length}}: {value}"
+            )
+
+        return "\n".join(formatted_lines)
 
     def add_common_mapping(self, old_filename, guess, mapping):
         # Original dir name, file name and extension
@@ -441,7 +502,7 @@ class Determine:
             deobfuscated_dirname_dots,
             deobfuscated_dirname_underscores,
             deobfuscated_dirname_spaces,
-        ) = self.get_deobfuscated_dirname(original_dirname, self.options.deobfuscate_re)
+        ) = self.get_deobfuscated_dirname(original_dirname)
         mapping.append(("%ddn", deobfuscated_dirname))
         mapping.append(("%.ddn", deobfuscated_dirname_dots))
         mapping.append(("%_ddn", deobfuscated_dirname_underscores))
@@ -451,9 +512,7 @@ class Determine:
             deobfuscated_dirname_titled_dots,
             deobfuscated_dirname_titled_underscores,
             deobfuscated_dirname_titled_spaces,
-        ) = self.get_deobfuscated_dirname(
-            original_dirname, self.options.deobfuscate_re, title_name
-        )
+        ) = self.get_deobfuscated_dirname(original_dirname, title_name)
         mapping.append(("%ddN", deobfuscated_dirname_titled))
         mapping.append(("%.ddN", deobfuscated_dirname_titled_dots))
         mapping.append(("%_ddN", deobfuscated_dirname_titled_underscores))
@@ -636,22 +695,28 @@ class Determine:
         mapping.append(("%0d", day.rjust(2, "0")))
 
     def strip_useless_parts(self, filename):
+        """
+        Strips useless parts from the filename.
+
+        Args:
+            filename (str): The filename to process.
+
+        Returns:
+            str: The cleaned-up filename.
+        """
         start = os.path.dirname(self.options.download_dir)
         new_name = filename[len(start) + 1 :]
-        if self.options.verbose:
-            loginf("stripped filename: %s" % new_name)
+        logdet(f"Stripped filename: {new_name}")
 
         parts = Determine.os_path_split(new_name)
-        if self.options.verbose:
-            loginf(parts)
+        logdet(f"Path parts: {parts}")
 
         part_removed = 0
         for x in range(0, len(parts) - 1):
             fn = parts[x]
             if fn.find(".") == -1 and fn.find("_") == -1 and fn.find(" ") == -1:
                 loginf(
-                    "Detected obfuscated directory name %s, removing from guess path"
-                    % fn
+                    f"Detected obfuscated directory name {fn}, removing from guess path"
                 )
                 parts[x] = None
                 part_removed += 1
@@ -659,8 +724,7 @@ class Determine:
         fn = os.path.splitext(parts[len(parts) - 1])[0]
         if fn.find(".") == -1 and fn.find("_") == -1 and fn.find(" ") == -1:
             loginf(
-                "Detected obfuscated filename %s, removing from guess path"
-                % os.path.basename(filename)
+                f"Detected obfuscated filename {os.path.basename(filename)}, removing from guess path"
             )
             parts[len(parts) - 1] = "-" + os.path.splitext(filename)[1]
             part_removed += 1
@@ -671,7 +735,7 @@ class Determine:
                 if parts[x] is not None:
                     new_name = os.path.join(new_name, parts[x])
         else:
-            loginf("All file path parts are obfuscated, using obfuscated NZB-Name")
+            loginf("All file path parts are obfuscated, using obfuscated NZB name")
             new_name = (
                 os.path.basename(self.options.download_dir)
                 + os.path.splitext(filename)[1]
@@ -680,24 +744,34 @@ class Determine:
         return new_name
 
     def remove_year(self, title):
-        """Removes year from series name (if exist)"""
+        """
+        Removes the year from the series name if it exists.
+
+        Args:
+            title (str): The title to process.
+
+        Returns:
+            str: The title without the year.
+        """
         m = re.compile(r"..*(\((19|20)\d\d\))").search(title)
         if not m:
             m = re.compile(r"..*((19|20)\d\d)").search(title)
         if m:
-            if self.options.verbose:
-                loginf("Removing year from series name")
+            loginf("Removing year from series name")
             title = title.replace(m.group(1), "").strip()
         return title
 
     def apply_dnzb_headers(self, guess):
-        """Applies DNZB headers (if exist)"""
+        """
+        Applies DNZB headers if they exist.
 
+        Args:
+            guess (dict): The guess dictionary to modify.
+        """
         dnzb_used = False
         if self.options.dnzb_proper_name != "":
             dnzb_used = True
-            if self.options.verbose:
-                loginf("Using DNZB-ProperName")
+            logdet("Using DNZB-ProperName")
             if guess["vtype"] == "series":
                 proper_name = self.options.dnzb_proper_name
                 if not self.options.series_year:
@@ -708,20 +782,17 @@ class Determine:
 
         if self.options.dnzb_episode_name != "" and guess["vtype"] == "series":
             dnzb_used = True
-            if self.options.verbose:
-                loginf("Using DNZB-EpisodeName")
+            logdet("Using DNZB-EpisodeName")
             guess["episode_title"] = self.options.dnzb_episode_name
 
         if self.options.dnzb_movie_year != "":
             dnzb_used = True
-            if self.options.verbose:
-                loginf("Using DNZB-MovieYear")
+            logdet("Using DNZB-MovieYear")
             guess["year"] = self.options.dnzb_movie_year
 
         if self.options.dnzb_more_info != "":
             dnzb_used = True
-            if self.options.verbose:
-                loginf("Using DNZB-MoreInfo")
+            logdet("Using DNZB-MoreInfo")
             if guess["type"] == "movie":
                 regex = re.compile(
                     r"^http://www.imdb.com/title/(tt[0-9]+)/$", re.IGNORECASE
@@ -731,37 +802,69 @@ class Determine:
                     guess["imdb"] = matches.group(1)
                     guess["cpimdb"] = "cp(" + guess["imdb"] + ")"
 
-        if self.options.verbose and dnzb_used:
-            loginf(guess)
+        if dnzb_used:
+            loginf(f"Guess after applying DNZB headers: {guess}")
 
     def year_and_season_equal(self, guess):
-        return (
+        """
+        Checks if the season number and year are equal.
+
+        Args:
+            guess (dict): The guess dictionary to check.
+
+        Returns:
+            bool: True if season and year are equal, False otherwise.
+        """
+        equal = (
             guess.get("season")
             and guess.get("year")
             and guess.get("season") == guess.get("year")
         )
+        logdet(f"year_and_season_equal: {equal}")
+        return equal
 
     def is_movie(self, guess):
+        """
+        Determines if the guess represents a movie.
+
+        Args:
+            guess (dict): The guess dictionary to check.
+
+        Returns:
+            bool: True if it's a movie, False otherwise.
+        """
         has_no_episode = guess.get("type") == "episode" and guess.get("episode") is None
         is_movie = (
             has_no_episode
             or guess.get("edition")
             or (self.year_and_season_equal(guess) and guess.get("type") != "episode")
         )
+        logdet(f"is_movie: {is_movie}")
         return is_movie
 
     def guess_info(self, filename):
-        """Parses the filename using guessit-library"""
+        """
+        Parses the filename using guessit library.
 
+        Args:
+            filename (str): The filename to parse.
+
+        Returns:
+            dict: The guess dictionary with extracted information.
+        """
         if self.options.use_nzb_name:
-            if self.options.verbose:
-                loginf("Using NZB-Name")
             guessfilename = (
                 os.path.basename(self.options.download_dir)
                 + os.path.splitext(filename)[1]
             )
+            logdet(
+                f'Input for GuessIt: NZB name "{self.options.download_dir}" with filename "filename" --> "{guessfilename}"'
+            )
         else:
             guessfilename = self.strip_useless_parts(filename)
+            logdet(
+                f'Input for GuessIt: Stripped useless parts from filename "{filename}" --> "{guessfilename}"'
+            )
 
         # workaround for titles starting with numbers (which guessit has problems with) (part 1)
         path, tmp_filename = os.path.split(guessfilename)
@@ -769,16 +872,14 @@ class Determine:
         if pad_start_digits:
             guessfilename = os.path.join(path, "T" + tmp_filename)
 
-        if self.options.verbose:
-            loginf(f'Calling GuessIt with "{guessfilename}"')
+        logdet(f'Calling GuessIt with "{guessfilename}"')
 
         # Use guessit directly as Python 3 handles Unicode by default
         guess = guessit.api.guessit(
             guessfilename, {"allowed_languages": [], "allowed_countries": []}
         )
 
-        if self.options.verbose:
-            loginf(guess)
+        logdet(f"GuessIt result:\n{Determine.format_matches_dict(guess)}")
 
         # workaround for titles starting with numbers (part 2)
         if pad_start_digits:
@@ -787,8 +888,7 @@ class Determine:
                 guess["title"] = os.path.splitext(os.path.basename(guessfilename))[0][
                     1:
                 ]
-                if self.options.verbose:
-                    loginf("use filename as title for recovery")
+                logdet("use filename as title for recovery")
 
         # fix some strange guessit guessing:
         # if guessit doesn't find a year in the file name it thinks it is episode,
@@ -796,23 +896,20 @@ class Determine:
 
         if self.is_movie(guess):
             guess["type"] = "movie"
-            if self.options.verbose:
-                loginf("episode without episode-number is a movie")
+            logdet("episode without episode-number is a movie")
 
         # treat parts as episodes ("Part.2" or "Part.II")
         if guess.get("type") == "movie" and guess.get("part") is not None:
             guess["type"] = "episode"
             guess["episode"] = guess.get("part")
-            if self.options.verbose:
-                loginf("treat parts as episodes")
+            logdet("treat parts as episodes")
 
         # add season number if not present
         if guess["type"] == "episode" and (
             guess.get("season") is None or self.year_and_season_equal(guess)
         ):
             guess["season"] = 1
-            if self.options.verbose:
-                loginf("force season 1")
+            logdet("force season 1")
 
         # detect if year is part of series name
         if guess["type"] == "episode":
@@ -824,8 +921,7 @@ class Determine:
                     and guess["title"] == self.remove_year(guess["title"])
                 ):
                     guess["title"] += " " + str(guess["year"])
-                    if self.options.verbose:
-                        loginf("year is part of title")
+                    logdet("year is part of title")
             else:
                 guess["title"] = self.remove_year(guess["title"])
 
@@ -845,12 +941,7 @@ class Determine:
         if self.options.dnzb_headers:
             self.apply_dnzb_headers(guess)
 
-        if self.options.verbose:
-            loginf("Type: %s" % guess["vtype"])
-
-        if self.options.verbose:
-            loginf(guess)
-
+        logdet(f"Final GuessIt structure:\n{Determine.format_matches_dict(guess)}")
         return guess
 
     def guess_dupe_separator(self, format):
@@ -872,8 +963,7 @@ class Determine:
     def construct_path(self, filename):
         """Parses the filename and generates new name for renaming"""
 
-        if self.options.verbose:
-            loginf("filename: %s" % filename)
+        loginf("filename: %s" % filename)
 
         guess = self.guess_info(filename)
         type = guess.get("vtype")
@@ -897,8 +987,7 @@ class Determine:
             format = self.options.othertv_format
             self.add_movies_mapping(guess, mapping)
         else:
-            if self.options.verbose:
-                loginf("Could not determine video type for %s" % filename)
+            loginf("Could not determine video type for %s" % filename)
             return None
 
         if dest_dir == "":
@@ -913,14 +1002,12 @@ class Determine:
 
         sorter = format.replace("\\", "/")
 
-        if self.options.verbose:
-            loginf("format: %s" % sorter)
+        loginf("format: %s" % sorter)
 
         # Replace elements
         path = Determine.path_subst(sorter, mapping)
 
-        if self.options.verbose:
-            loginf("path after subst: %s" % path)
+        logdet("path after subst: %s" % path)
 
         # Cleanup file name
         old_path = ""
@@ -945,21 +1032,15 @@ class Determine:
         path = os.path.normpath(path)
         dest_dir = os.path.normpath(dest_dir)
 
-        if self.options.verbose:
-            loginf("path after cleanup: %s" % path)
+        logdet("path after cleanup: %s" % path)
 
         new_path = os.path.normpath(os.path.join(dest_dir, *path.split(os.sep)))
 
-        if self.options.verbose:
-            loginf("destination path: %s" % new_path)
-
         if filename.upper() == new_path.upper():
-            if self.options.verbose:
-                loginf(f'construct_path: "{filename}" == "{new_path}": return None')
+            loginf(f'construct_path: "{filename}" == "{new_path}": return None')
             return None
 
-        if self.options.verbose:
-            loginf(f'construct_path: "{filename}" --> "{new_path}"')
+        loginf(f'construct_path: "{filename}" --> "{new_path}"')
         return new_path
 
 

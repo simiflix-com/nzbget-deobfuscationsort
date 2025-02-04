@@ -52,15 +52,15 @@ verbose = False
 test_ids = []
 
 options, _ = getopt.getopt(
-    sys.argv[1:], "v:c:p:t", ["verbose", "testid=", "cleanup", "preview"]
+    sys.argv[1:], "v:c:p:t", ["verbose", "preview", "cleanup", "testid="]
 )
 for opt, arg in options:
     if opt in ("-v", "--verbose"):
         verbose = True
-    elif opt in ("-c", "--cleanup"):
-        cleanup = True
     elif opt in ("-p", "--preview"):
         preview = True
+    elif opt in ("-c", "--cleanup"):
+        cleanup = True
     elif opt in ("-t", "--testid"):
         test_ids.append(arg)
 
@@ -68,7 +68,7 @@ for opt, arg in options:
 # Configure logging for debugging
 logging.basicConfig(
     level=(verbose and logging.DEBUG or logging.WARN),
-    format="%(levelname)s: %(message)s",
+    format="%(message)s",
 )
 
 logging.debug("Test script for DeobfuscationSort")
@@ -109,11 +109,9 @@ def set_defaults():
     )
     os.environ["NZBPO_SERIESYEAR"] = "yes"
     os.environ["NZBPO_OVERWRITE"] = "no"
-    os.environ["NZBPO_CLEANUP"] = cleanup and "yes" or "no"
+    os.environ["NZBPO_VERBOSE"] = verbose and "yes" or "no"
     os.environ["NZBPO_PREVIEW"] = preview and "yes" or "no"
-
-    # NZBPO_VERBOSE must be "yes" as otherwise we cannot capture the output
-    os.environ["NZBPO_VERBOSE"] = "yes"
+    os.environ["NZBPO_CLEANUP"] = cleanup and "yes" or "no"
 
     # properties of nzb-file
     os.environ["NZBPP_DIRECTORY"] = TEST_DIR
@@ -173,6 +171,38 @@ def get_test_file_parent(file_path):
     return relative_base_path
 
 
+def get_video_file_in_finaldir(finaldir_path):
+    # Ensure the argument is a Path object
+    if not isinstance(finaldir_path, Path):
+        finaldir_path = Path(finaldir_path)
+
+    # Ensure path is inside TEST_DIR before making it relative
+    if not finaldir_path.is_relative_to(TEST_DIR):  # Python 3.9+
+        raise Exception(f"Destination path {finaldir_path} is not inside {TEST_DIR}.")
+
+    for entry in finaldir_path.iterdir():
+        if entry.is_file():
+            if entry.suffix.lower().lstrip(".") in Options._VIDEO_EXTENSIONS:
+                return Path("/") / entry.relative_to(TEST_DIR)
+    return None
+
+
+def get_absolute_path_from_test_dir_(file_path):
+    # Ensure the argument is a Path object
+    if not isinstance(file_path, Path):
+        file_path = Path(file_path)
+
+    relative_base_path = None
+    if file_path.is_absolute():
+        # Convert absolute file path to relative
+        relative_base_path = file_path.relative_to("/").parent
+    else:
+        # Use the parent directory of the relative file path
+        relative_base_path = file_path.parent
+    return relative_base_path
+    return Path(TEST_DIR) / relative_base_path / file_path.name
+
+
 def create_test_file(test_file, test_file_size):
     """Creates a test file with the specified size in the appropriate directory."""
 
@@ -183,8 +213,7 @@ def create_test_file(test_file, test_file_size):
     with test_file.open("wb") as f:
         f.write(b"0" * test_file_size)
 
-    if verbose:
-        print(f"Created file: {test_file} with size {test_file_size}")
+    logging.info(f"Created file: {test_file} with size {test_file_size}")
 
 
 def execute_deobfuscation_sort(test_file):
@@ -200,30 +229,22 @@ def execute_deobfuscation_sort(test_file):
     out, err = proc.communicate()
     ret = proc.returncode
 
-    if verbose:
-        print("stdout: %s" % out.decode())
-        print("stderr: %s" % err.decode())
+    logging.info(f"STDOUT:\n{out.decode()}\nSTDERR:\n{err.decode()}")
 
-    dest = None  # Initialize destination variable
+    # Initialize destination variable
+    dest = ""
+    dest_file = None
+    final_dir = None
     try:
         if ret == POSTPROCESS_SUCCESS:
-            match = re.search(
-                r"^(?:\[[A-Z]+\] )?destination path: (.+)", out.decode(), re.MULTILINE
-            )
+            match = re.search(r"^\[NZB\] FINALDIR=(.+)", out.decode(), re.MULTILINE)
             if match:
-                dest_path = Path(match.group(1))
-                logging.debug(f"Extracted destination path: {dest_path}")
-
-                # Ensure path is inside TEST_DIR before making it relative
-                if dest_path.is_relative_to(TEST_DIR):  # Python 3.9+
-                    dest = (Path("/") / dest_path.relative_to(TEST_DIR)).as_posix()
-                else:
-                    raise Exception(
-                        f"Destination path {dest_path} is not inside {TEST_DIR}."
-                    )
+                final_dir = Path(match.group(1))
+                logging.debug(f"NZB FINALDIR: {final_dir}")
+                dest_file = get_video_file_in_finaldir(final_dir)
 
         elif ret == POSTPROCESS_NONE:
-            dest = (Path("/") / test_file.relative_to(TEST_DIR)).as_posix()
+            dest_file = Path("/") / test_file.relative_to(TEST_DIR)
 
         elif ret == POSTPROCESS_ERROR:
             raise Exception(
@@ -234,17 +255,17 @@ def execute_deobfuscation_sort(test_file):
             raise Exception(f"Unexpected return code: {ret}")
 
         # Ensure the destination path is absolute
-        assert dest is not None
-        assert Path(dest).is_absolute()
-        test_dir_dest_path = get_test_dir_path_file(dest)
-        assert test_dir_dest_path.is_file()
+        assert dest_file is not None
+        assert dest_file.is_absolute()
+        # Return the destination path as a string
+        dest = dest_file.as_posix()
 
     except Exception as e:
         logging.exception(
             "An error occurred while processing the destination path.", exc_info=e
         )
 
-    return out, err, ret, dest
+    return dest
 
 
 def run_test(testobj):
@@ -261,8 +282,7 @@ def run_test(testobj):
             ).as_posix()
         else:
             os.environ[str(prop_name)] = str(testobj[prop_name])
-        if verbose:
-            print("%s: %s" % (prop_name, os.environ[prop_name]))
+        logging.info("%s: %s" % (prop_name, os.environ[prop_name]))
     input_file_spec = testobj["INPUTFILE"]
     output_file_spec = testobj["OUTPUTFILE"]
     input_file_path = get_test_dir_path_file(input_file_spec)
@@ -277,8 +297,7 @@ def run_test(testobj):
     if input_test_dir:
         os.environ["NZBPP_DIRECTORY"] = str(input_test_dir)
         # os.environ["NZBPP_FILENAME"] = input_file_name
-        if verbose:
-            print("Using NZB directory: %s" % os.environ["NZBPP_DIRECTORY"])
+        logging.info("Using NZB directory: %s" % os.environ["NZBPP_DIRECTORY"])
 
     input_file_size = testobj.get("INPUTFILESIZE", FILESIZE_DEFAULT)
 
@@ -288,32 +307,29 @@ def run_test(testobj):
     create_test_file(input_file_path, input_file_size)
 
     # Run deobfuscation sort on the input file
-    out, err, ret, dest = execute_deobfuscation_sort(input_file_path)
+    dest = execute_deobfuscation_sort(input_file_path)
 
     success = dest == output_file_spec
 
     if success:
-        print("%s: SUCCESS" % testobj["id"])
+        print(f"{testobj['id']}: SUCCESS")
+    else:
+        print(f"{testobj['id']}: FAILED")
+
+    if verbose:
+        max_len = max(len(str(output_file_spec)), len(str(dest))) + len("destination: ")
+        logging.info(
+            f"""{max_len * (success and "-" or "#")}
+id: {testobj["id"]}
+expected:    {output_file_spec}
+destination: {dest}
+{print_difference(str(output_file_spec), str(dest), "destination: ")}
+{max_len * (success and "-" or "#")}
+"""
+        )
+
     if not success:
-        if verbose:
-            print("********************************************************")
-            print("*** FAILURE")
-            print("stdout: %s" % out.decode())
-            print("stderr: %s" % err.decode())
-            print("*** FAILURE")
-            print("id: %s" % testobj["id"])
-            print("expected:    %s" % output_file_spec)
-            print("destination: %s" % dest)
-            print_difference(str(output_file_spec), str(dest), "destination: ")
-            print("********************************************************")
-            sys.exit(1)
-        else:
-            print("%s: FAILED" % testobj["id"])
-            if output_file_spec == "":
-                print("destination: %s" % dest)
-    elif verbose:
-        print("expected:    %s" % output_file_spec)
-        print("destination: %s" % dest)
+        sys.exit(1)
 
 
 testdata = json.load(open(ROOT_DIR + "/testdata.json", encoding="UTF-8"))

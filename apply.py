@@ -230,8 +230,9 @@ class Apply:
             loginf("Deleted: %s" % self.options.download_dir)
 
     @staticmethod
-    def _file_size_human(size):
+    def _file_size_human(file_path):
         """Converts file size to human readable format"""
+        size = file_path.stat().st_size
         for unit in ["B", "kB", "MB", "GB", "TB"]:
             if size < 1024.0:
                 return f"{size:.2f}{unit}"
@@ -241,7 +242,7 @@ class Apply:
     @staticmethod
     def _describe_file(file_path):
         """Returns a string describing the file at the given path"""
-        return f'"{str(file_path)}[{Apply._file_size_human(file_path.stat().st_size)}]"'
+        return f'"{str(file_path)}[{Apply._file_size_human(file_path)}]"'
 
     def apply(self):
         # Process all the files in download_dir and its subdirectories
