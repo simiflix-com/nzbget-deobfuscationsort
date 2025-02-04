@@ -30,6 +30,8 @@ from pathlib import Path
 import re
 import logging
 
+from options import Options
+
 # Exit codes used by NZBGet
 POSTPROCESS_SUCCESS = 93
 POSTPROCESS_NONE = 95
@@ -49,7 +51,9 @@ preview = False
 verbose = False
 test_ids = []
 
-options, _ = getopt.getopt(sys.argv[1:], "v:c:p:t", ["verbose", "testid=", "cleanup", "preview"])
+options, _ = getopt.getopt(
+    sys.argv[1:], "v:c:p:t", ["verbose", "testid=", "cleanup", "preview"]
+)
 for opt, arg in options:
     if opt in ("-v", "--verbose"):
         verbose = True
@@ -62,39 +66,53 @@ for opt, arg in options:
 
 
 # Configure logging for debugging
-logging.basicConfig(level=(verbose and logging.DEBUG or logging.WARN), format="%(levelname)s: %(message)s")
+logging.basicConfig(
+    level=(verbose and logging.DEBUG or logging.WARN),
+    format="%(levelname)s: %(message)s",
+)
 
 logging.debug("Test script for DeobfuscationSort")
+
 
 def get_python():
     if os.name == "nt":
         return "python"
     return "python3"
 
+
 def set_defaults():
     # script options
+
     os.environ["NZBPO_MOVIESDIR"] = get_test_dir_path_file("movies").as_posix()
     os.environ["NZBPO_SERIESDIR"] = get_test_dir_path_file("series").as_posix()
     os.environ["NZBPO_DATEDDIR"] = get_test_dir_path_file("dated").as_posix()
     os.environ["NZBPO_OTHERTVDIR"] = get_test_dir_path_file("tv").as_posix()
-    os.environ["NZBPO_VIDEOEXTENSIONS"] = ".mkv,.mp4,.avi"
-    os.environ["NZBPO_SATELLITEEXTENSIONS"] = ".srt"
+    os.environ["NZBPO_VIDEOEXTENSIONS"] = ",".join(Options._VIDEO_EXTENSIONS)
+    os.environ["NZBPO_SATELLITEEXTENSIONS"] = ",".join(Options._SATELLITE_EXTENSIONS)
     os.environ["NZBPO_MULTIPLEEPISODES"] = "list"
     os.environ["NZBPO_EPISODESEPARATOR"] = "-"
     os.environ["NZBPO_MINSIZE"] = "0"
     os.environ["NZBPO_TVCATEGORIES"] = "tv"
     os.environ["NZBPO_MOVIESFORMAT"] = "%fn"
-    os.environ["NZBPO_OTHERTVFORMAT"] = "%fn"
     os.environ["NZBPO_SERIESFORMAT"] = "%fn"
+    os.environ["NZBPO_OTHERTVFORMAT"] = "%fn"
     os.environ["NZBPO_DATEDFORMAT"] = "%fn"
     os.environ["NZBPO_LOWERWORDS"] = "the,of,and,at,vs,a,an,but,nor,for,on,so,yet"
     os.environ["NZBPO_UPPERWORDS"] = "III,II,IV"
-    os.environ["NZBPO_DEOBFUSCATEWORDS"] = "RP,1,NZBGeek,Obfuscated,Obfuscation,Scrambled,sample,Pre,postbot,xpost,Rakuv,WhiteRev,BUYMORE,AsRequested,AlternativeToRequested,GEROV,Z0iDS3N,Chamele0n,4P,4Planet,AlteZachen,RePACKPOST,RARBG,SirUppington"
-    os.environ["NZBPO_RELEASEGROUPS"] = "3DM,AJP69,BHDStudio,BMF,BTN,BV,BeyondHD,CJ,CLASS,CMRG,CODEX,CONSPIR4CY,CRX,CRiSC,Chotab,CtrlHD,D-Z0N3,D-Z0N3,D-Z0N3,DEViANCE,DON,Dariush,DrinkOrDie,E.N.D,E1,EA,EDPH,ESiR,EVO,EVO,EViLiSO,EXCiSION,EbP,Echelon,FAiRLiGHT,FLUX,FTW-HD,FilmHD,FoRM,FraMeSToR,FraMeSToR,GALAXY,GS88,Geek,HANDJOB,HATRED,HDMaNiAcS,HYBRID,HiDt,HiFi,HiP,Hoodlum,IDE,KASHMiR,KRaLiMaRKo,Kalisto,LEGi0N,LiNG,LoRD,MZABI,Myth,NCmt,NTb,NTb,NyHD,ORiGEN,P0W4HD,PARADOX,PTer,Penumbra,Positive,RELOADED,REVOLT,Radium,Risciso,SA89,SKIDROW,SMURF,STEAMPUNKS,SaNcTi,SbR,SiMPLE,TBB,TDD,TEPES,TayTo,ThD,VLAD,ViTALiTY,VietHD,W4NK3R,WMING,ZIMBO,ZQ,c0ke,de[42],decibeL,hdalx,iFT,iON,luvBB,maVen,nmd,playHD,playWEB"
+    os.environ["NZBPO_DEOBFUSCATEWORDS"] = (
+        "RP,1,NZBGeek,Obfuscated,Obfuscation,Scrambled,sample,Pre,postbot,xpost,Rakuv,WhiteRev,BUYMORE,AsRequested,AlternativeToRequested,GEROV,Z0iDS3N,Chamele0n,4P,4Planet,AlteZachen,RePACKPOST,RARBG,SirUppington"
+    )
+    os.environ["NZBPO_DNZBHEADERS"] = "no"
+    os.environ["NZBPO_PREFERNZBNAME"] = "no"
+    os.environ["NZBPO_RELEASEGROUPS"] = (
+        "3DM,AJP69,BHDStudio,BMF,BTN,BV,BeyondHD,CJ,CLASS,CMRG,CODEX,CONSPIR4CY,CRX,CRiSC,Chotab,CtrlHD,D-Z0N3,DEViANCE,DON,Dariush,DrinkOrDie,E.N.D,E1,EA,EDPH,ESiR,EVO,EViLiSO,EXCiSION,EbP,Echelon,FAiRLiGHT,FLUX,FTW-HD,FilmHD,FoRM,FraMeSToR,GALAXY,GS88,Geek,HANDJOB,HATRED,HDMaNiAcS,HYBRID,HiDt,HiFi,HiP,Hoodlum,IDE,KASHMiR,KRaLiMaRKo,Kalisto,LEGi0N,LiNG,LoRD,MZABI,Myth,NCmt,NTb,NyHD,ORiGEN,P0W4HD,PARADOX,PTer,Penumbra,Positive,RELOADED,REVOLT,Radium,Risciso,SA89,SKIDROW,SMURF,STEAMPUNKS,SaNcTi,SbR,SiMPLE,TBB,TDD,TEPES,TayTo,ThD,VLAD,ViTALiTY,VietHD,W4NK3R,WMING,ZIMBO,ZQ,c0ke,de[42],decibeL,hdalx,iFT,iON,luvBB,maVen,nmd,playHD,playWEB"
+    )
     os.environ["NZBPO_SERIESYEAR"] = "yes"
     os.environ["NZBPO_OVERWRITE"] = "no"
     os.environ["NZBPO_CLEANUP"] = cleanup and "yes" or "no"
     os.environ["NZBPO_PREVIEW"] = preview and "yes" or "no"
+
+    # NZBPO_VERBOSE must be "yes" as otherwise we cannot capture the output
     os.environ["NZBPO_VERBOSE"] = "yes"
 
     # properties of nzb-file
@@ -115,9 +133,13 @@ def print_difference(expected, actual, prefix=""):
     diff_line = ""
     if prefix != "":
         diff_line += len(prefix) * " "
-    diff_line += ''.join('^' if e != a else ' ' for e, a in zip(expected, actual))
+    diff_line += "".join("^" if e != a else " " for e, a in zip(expected, actual))
     # Extend the diff_line to match the length of the longer string
-    diff_line += '^' * (len(expected) - len(actual)) if len(expected) > len(actual) else ' ' * (len(actual) - len(expected))
+    diff_line += (
+        "^" * (len(expected) - len(actual))
+        if len(expected) > len(actual)
+        else " " * (len(actual) - len(expected))
+    )
     print(diff_line)
 
 
@@ -129,7 +151,7 @@ def get_test_dir_path_file(file_path):
     relative_base_path = None
     if file_path.is_absolute():
         # Convert absolute file path to relative
-        relative_base_path = file_path.relative_to('/').parent
+        relative_base_path = file_path.relative_to("/").parent
     else:
         # Use the parent directory of the relative file path
         relative_base_path = file_path.parent
@@ -144,7 +166,7 @@ def get_test_file_parent(file_path):
     relative_base_path = None
     if file_path.is_absolute():
         # Convert absolute file path to relative
-        relative_base_path = file_path.relative_to('/').parent
+        relative_base_path = file_path.relative_to("/").parent
     else:
         # Use the parent directory of the relative file path
         relative_base_path = file_path.parent
@@ -153,7 +175,7 @@ def get_test_file_parent(file_path):
 
 def create_test_file(test_file, test_file_size):
     """Creates a test file with the specified size in the appropriate directory."""
-    
+
     # Ensure the directory exists
     test_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -185,7 +207,9 @@ def execute_deobfuscation_sort(test_file):
     dest = None  # Initialize destination variable
     try:
         if ret == POSTPROCESS_SUCCESS:
-            match = re.search(r"^(?:\[[A-Z]+\] )?destination path: (.+)", out.decode(), re.MULTILINE)
+            match = re.search(
+                r"^(?:\[[A-Z]+\] )?destination path: (.+)", out.decode(), re.MULTILINE
+            )
             if match:
                 dest_path = Path(match.group(1))
                 logging.debug(f"Extracted destination path: {dest_path}")
@@ -194,23 +218,31 @@ def execute_deobfuscation_sort(test_file):
                 if dest_path.is_relative_to(TEST_DIR):  # Python 3.9+
                     dest = (Path("/") / dest_path.relative_to(TEST_DIR)).as_posix()
                 else:
-                    raise Exception(f"Destination path {dest_path} is not inside {TEST_DIR}.")
+                    raise Exception(
+                        f"Destination path {dest_path} is not inside {TEST_DIR}."
+                    )
 
         elif ret == POSTPROCESS_NONE:
             dest = (Path("/") / test_file.relative_to(TEST_DIR)).as_posix()
 
         elif ret == POSTPROCESS_ERROR:
-            raise Exception(f"DeobfuscationSort returned error\n\n{out.decode()}\n\n{err.decode()}")
+            raise Exception(
+                f"DeobfuscationSort returned error\n\n{out.decode()}\n\n{err.decode()}"
+            )
 
         else:
             raise Exception(f"Unexpected return code: {ret}")
-        
-        assert(Path(dest).is_absolute())
+
+        # Ensure the destination path is absolute
+        assert dest is not None
+        assert Path(dest).is_absolute()
         test_dir_dest_path = get_test_dir_path_file(dest)
-        assert(test_dir_dest_path.is_file())
+        assert test_dir_dest_path.is_file()
 
     except Exception as e:
-        logging.exception("An error occurred while processing the destination path.", exc_info=e)
+        logging.exception(
+            "An error occurred while processing the destination path.", exc_info=e
+        )
 
     return out, err, ret, dest
 
@@ -218,8 +250,15 @@ def execute_deobfuscation_sort(test_file):
 def run_test(testobj):
     set_defaults()
     for prop_name in testobj:
-        if str(prop_name) in ["NZBPO_MOVIESDIR", "NZBPO_SERIESDIR", "NZBPO_DATEDDIR", "NZBPO_OTHERTVDIR"]:
-            os.environ[str(prop_name)] = get_test_dir_path_file(str(testobj[prop_name])).as_posix()
+        if str(prop_name) in [
+            "NZBPO_MOVIESDIR",
+            "NZBPO_SERIESDIR",
+            "NZBPO_DATEDDIR",
+            "NZBPO_OTHERTVDIR",
+        ]:
+            os.environ[str(prop_name)] = get_test_dir_path_file(
+                str(testobj[prop_name])
+            ).as_posix()
         else:
             os.environ[str(prop_name)] = str(testobj[prop_name])
         if verbose:
@@ -228,7 +267,7 @@ def run_test(testobj):
     output_file_spec = testobj["OUTPUTFILE"]
     input_file_path = get_test_dir_path_file(input_file_spec)
 
-    # Clean and recreate TEST_DIR for a clean start    
+    # Clean and recreate TEST_DIR for a clean start
     shutil.rmtree(TEST_DIR, True)
     os.makedirs(TEST_DIR, exist_ok=False)
 
@@ -276,6 +315,7 @@ def run_test(testobj):
     elif verbose:
         print("expected:    %s" % output_file_spec)
         print("destination: %s" % dest)
+
 
 testdata = json.load(open(ROOT_DIR + "/testdata.json", encoding="UTF-8"))
 for testobj in testdata:
