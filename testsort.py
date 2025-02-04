@@ -49,7 +49,7 @@ preview = False
 verbose = False
 test_ids = []
 
-options, _ = getopt.getopt(sys.argv[1:], "t:v", ["testid=", "verbose"])
+options, _ = getopt.getopt(sys.argv[1:], "v:c:p:t", ["verbose", "testid=", "cleanup", "preview"])
 for opt, arg in options:
     if opt in ("-v", "--verbose"):
         verbose = True

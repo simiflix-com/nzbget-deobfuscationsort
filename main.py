@@ -377,12 +377,16 @@ def cleanup_download_dir():
         loginf("Cleanup")
 
     # Check if there are any big files remaining
+    keep_download_dir = False
     for root, dirs, files in os.walk(download_dir):
         for filename in files:
-            path = os.path.join(root, filename)
+            path = Path(root) / filename
+            if path in moved_dst_files:
+                keep_download_dir = True
+                continue
             # Check minimum file size
             if os.path.getsize(path) >= min_size and (
-                not preview or path not in moved_src_files
+                not preview or (path not in moved_src_files)
             ):
                 logwar("Skipping clean up due to large files remaining in the directory")
                 return
@@ -390,14 +394,17 @@ def cleanup_download_dir():
     # Now delete all files with nice logging
     for root, dirs, files in os.walk(download_dir):
         for filename in files:
-            path = os.path.join(root, filename)
+            path = Path(root) / filename
+            if path in moved_dst_files:
+                continue
             if not preview or path not in moved_src_files:
                 if not preview:
-                    os.remove(path)
+                    path.unlink()
                 loginf("Deleted: %s" % path)
-    if not preview:
-        shutil.rmtree(download_dir)
-    loginf("Deleted: %s" % download_dir)
+    if not keep_download_dir:
+        if not preview:
+            shutil.rmtree(download_dir)
+        loginf("Deleted: %s" % download_dir)
 
 
 STRIP_AFTER = ("_", ".", "-")
