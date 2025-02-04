@@ -295,7 +295,7 @@ class Determine:
                 decade2 = (
                     year_str[:3] + "0"
                 )  # Take first three digits and add 0 (e.g., "2020")
-            except:
+            except IndexError:
                 decade = ""
                 decade2 = ""
         else:
@@ -668,7 +668,7 @@ class Determine:
         if part_removed < len(parts):
             new_name = ""
             for x in range(0, len(parts)):
-                if parts[x] != None:
+                if parts[x] is not None:
                     new_name = os.path.join(new_name, parts[x])
         else:
             loginf("All file path parts are obfuscated, using obfuscated NZB-Name")
@@ -742,7 +742,7 @@ class Determine:
         )
 
     def is_movie(self, guess):
-        has_no_episode = guess.get("type") == "episode" and guess.get("episode") == None
+        has_no_episode = guess.get("type") == "episode" and guess.get("episode") is None
         is_movie = (
             has_no_episode
             or guess.get("edition")
@@ -800,7 +800,7 @@ class Determine:
                 loginf("episode without episode-number is a movie")
 
         # treat parts as episodes ("Part.2" or "Part.II")
-        if guess.get("type") == "movie" and guess.get("part") != None:
+        if guess.get("type") == "movie" and guess.get("part") is not None:
             guess["type"] = "episode"
             guess["episode"] = guess.get("part")
             if self.options.verbose:
@@ -808,7 +808,7 @@ class Determine:
 
         # add season number if not present
         if guess["type"] == "episode" and (
-            guess.get("season") == None or self.year_and_season_equal(guess)
+            guess.get("season") is None or self.year_and_season_equal(guess)
         ):
             guess["season"] = 1
             if self.options.verbose:
@@ -818,8 +818,8 @@ class Determine:
         if guess["type"] == "episode":
             if self.options.series_year:
                 if (
-                    guess.get("year") != None
-                    and guess.get("title") != None
+                    guess.get("year") is not None
+                    and guess.get("title") is not None
                     and guess.get("season") != guess.get("year")
                     and guess["title"] == self.remove_year(guess["title"])
                 ):

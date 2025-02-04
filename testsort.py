@@ -281,7 +281,6 @@ def run_test(testobj):
             print("Using NZB directory: %s" % os.environ["NZBPP_DIRECTORY"])
 
     input_file_size = testobj.get("INPUTFILESIZE", FILESIZE_DEFAULT)
-    output_file_size = testobj.get("OUTPUTFILESIZE", FILESIZE_DEFAULT)
 
     success = False
 
