@@ -14,8 +14,13 @@ import guessit
 
 
 class Apply:
+    PREVIEW_PREFIX = "[PREVIEW] "
+
     def __init__(self, options: Options = None):
         self.options = options and options or Options()
+
+        if not self.options.preview:
+            Apply.PREVIEW_PREFIX = ""
 
         # Indicate if any errors occurred that should prohibit `cleanup`
         self.errors = False
@@ -44,49 +49,70 @@ class Apply:
             suffix_num += 1
         return new_name
 
-    def optimized_move(old, new):
+    def optimized_move(self, src_path: Path, dst_path: Path):
         try:
-            os.rename(old, new)
-            logdet(f'optimized_move: os.rename "{old}" --> "{new}"')
-        except OSError as ex:
-            logdet("Rename failed ({}), performing copy: {}".format(ex, new))
-            shutil.copyfile(old, new)
-            logdet(f'optimized_move: shutil.copyfile "{old}" --> "{new}"')
-            os.remove(old)
-            logdet(f'optimized_move: os.remove "{old}"')
-
-    def rename(self, old, new):
-        """Moves the file to its sorted location.
-        It creates any necessary directories to place the new file and moves it.
-        """
-        if os.path.exists(new) or new in self.moved_dst_files:
-            if self.options.overwrite and new not in self.moved_dst_files:
-                if not self.options.preview:
-                    os.remove(new)
-                loginf(f'rename: os.removed "{new}"')
-                if not self.options.preview:
-                    Apply.optimized_move(old, new)
-                loginf(f'rename: optimized_move "{old}" --> "{new}"')
-            else:
-                # rename to filename.(2).ext, filename.(3).ext, etc.
-                new = self.unique_name(new)
-                self.rename(old, new)
-        else:
             if not self.options.preview:
-                if not os.path.exists(os.path.dirname(new)):
-                    os.makedirs(os.path.dirname(new))
-                Apply.optimized_move(old, new)
-            loginf(f'rename: optimized_move "{old}" --> "{new}"')
-        self.moved_src_files.append(old)
-        self.moved_dst_files.append(new)
-        return new
+                # Create the path to the destination file
+                dst_path.parent.mkdir(parents=True, exist_ok=True)
+                src_path.rename(dst_path)
+            logdet(
+                f'{Apply.PREVIEW_PREFIX}optimized_move:  "{src_path}".rename("{dst_path}") OK'
+            )
+        except OSError as ex:
+            logdet(f"optimized_move: os.rename failed ({ex})")
+            if not self.options.preview:
+                shutil.copyfile(src_path, dst_path)
+            logdet(
+                f'{Apply.PREVIEW_PREFIX}optimized_move: shutil.copyfile("{src_path}", "{dst_path}") OK'
+            )
+            if not self.options.preview:
+                src_path.unlink()
+            logdet(f'{Apply.PREVIEW_PREFIX}optimized_move: "{src_path}".unlink() OK')
+
+    def rename(self, src_path, dst_path):
+        """Moves the file to its sorted location.
+        It creates directories to `dst_path` and moves the file from `src_path` there.
+        """
+        # Ensure the arguments are `Path` objects
+        if not isinstance(src_path, Path):
+            src_path = Path(src_path)
+        if not isinstance(dst_path, Path):
+            dst_path = Path(dst_path)
+
+        if dst_path.exists() or dst_path in self.moved_dst_files:
+            if self.options.overwrite and dst_path not in self.moved_dst_files:
+                # Overwrite existing file
+                loginf(
+                    f'rename: overwrite={self.options.overwrite} and "{dst_path}" not in {self.moved_dst_files}'
+                )
+                if not self.options.preview:
+                    dst_path.unlink()
+                loginf(f'{Apply.PREVIEW_PREFIX}rename: "{dst_path}".unlink() OK')
+                self.optimized_move(src_path, dst_path)
+            else:
+                # Cannot overwrite existing file because either overwrite is disabled or
+                # the destination file was created by the script.
+                # Rename to a unique filename instead
+                dst_path = self.unique_name(dst_path)
+                loginf(
+                    f'rename: overwrite={self.options.overwrite}: resursively call rename("{src_path}", "{dst_path}")'
+                )
+                self.rename(src_path, dst_path)
+        else:
+            # Destination file does not exist and is not in the list of moved files
+            self.optimized_move(src_path, dst_path)
+            loginf(f'rename: optimized_move("{src_path}", "{dst_path})" OK')
+        self.moved_src_files.append(src_path)
+        self.moved_dst_files.append(dst_path)
+        logdet(f"rename: file at dst_path is {Apply._file_size_human(dst_path)}")
+        logdet(f"rename: returning {dst_path}")
+        return dst_path
 
     def move_satellites(self, videofile, dest):
         """Moves satellite files such as subtitles that are associated with base
         and stored in root to the correct dest.
         """
-        if self.options.verbose:
-            loginf("Move satellites for %s" % videofile)
+        loginf(f'move_satellites("{videofile}", "{dest}")')
 
         root = os.path.dirname(videofile)
         destbasenm = os.path.splitext(dest)[0]
@@ -107,15 +133,16 @@ class Apply:
                             fbase = fbase[: fbase.rfind(".")]
                             # Use alpha2 subtitle language from GuessIt (en, es, de, etc.)
                             subpart = "." + guess["subtitle_language"].alpha2
-                        if self.options.verbose:
-                            if subpart != "":
-                                loginf(
-                                    "Satellite: %s is a subtitle [%s]"
-                                    % (filename, guess["subtitle_language"])
-                                )
-                            else:
-                                # English (or undetermined)
-                                loginf("Satellite: %s is a subtitle" % filename)
+
+                        if subpart != "":
+                            loginf(
+                                "Satellite: %s is a subtitle [%s]"
+                                % (filename, guess["subtitle_language"])
+                            )
+                        else:
+                            # English (or undetermined)
+                            loginf("Satellite: %s is a subtitle" % filename)
+
                     elif (fbase.lower() != base.lower()) and fextlo == ".nfo":
                         # Aggressive match attempt
                         if self.options.deep_scan:
@@ -126,15 +153,13 @@ class Apply:
                     if fbase.lower() == base.lower():
                         old = fpath
                         new = destbasenm + subpart + fext
-                        if self.options.verbose:
-                            loginf("Satellite: %s" % os.path.basename(new))
+                        loginf("Satellite: %s" % os.path.basename(new))
                         self.rename(old, new)
 
     def deep_scan_nfo(self, filename, ratio=None):
         if ratio is None:
             ratio = self.options.deep_scan_ratio
-        if self.options.verbose:
-            loginf("Deep scanning satellite: %s (ratio=%.2f)" % (filename, ratio))
+        loginf("Deep scanning satellite: %s (ratio=%.2f)" % (filename, ratio))
         best_guess = None
         best_ratio = 0.00
         try:
@@ -150,14 +175,12 @@ class Apply:
                             None, word, self.options.nzb_name
                         )
                         # Evaluate ratio against threshold and previous matches
-                        if self.options.verbose:
-                            loginf("Tested: %s (ratio=%.2f)" % (word, diff.ratio()))
+                        loginf("Tested: %s (ratio=%.2f)" % (word, diff.ratio()))
                         if diff.ratio() >= ratio and diff.ratio() > best_ratio:
-                            if self.options.verbose:
-                                loginf(
-                                    "Possible match found: %s (ratio=%.2f)"
-                                    % (word, diff.ratio())
-                                )
+                            loginf(
+                                "Possible match found: %s (ratio=%.2f)"
+                                % (word, diff.ratio())
+                            )
                             best_guess = guess
                             best_ratio = diff.ratio()
                 except UnicodeDecodeError:
@@ -172,8 +195,7 @@ class Apply:
         """Remove the download directory if it (or any subfodler) does not contain "important" files
         (important = size >= min_size)
         """
-        if self.options.verbose:
-            loginf("Cleanup")
+        loginf(f'cleanup_download_dir("{self.options.download_dir}")')
 
         # Check if there are any big files remaining
         keep_download_dir = False
@@ -206,6 +228,20 @@ class Apply:
             if not self.options.preview:
                 shutil.rmtree(self.options.download_dir)
             loginf("Deleted: %s" % self.options.download_dir)
+
+    @staticmethod
+    def _file_size_human(size):
+        """Converts file size to human readable format"""
+        for unit in ["B", "kB", "MB", "GB", "TB"]:
+            if size < 1024.0:
+                return f"{size:.2f}{unit}"
+            size /= 1024.0
+        return f"{size:.2f}PB"
+
+    @staticmethod
+    def _describe_file(file_path):
+        """Returns a string describing the file at the given path"""
+        return f'"{str(file_path)}[{Apply._file_size_human(file_path.stat().st_size)}]"'
 
     def apply(self):
         # Process all the files in download_dir and its subdirectories
