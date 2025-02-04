@@ -11,14 +11,14 @@
     "about": "Sorts and deobfuscates movies and tv shows.",
     "queueEvents": "",
     "requirements": [
-        "This script requires Python 3.8.x and above to be installed on your system."
+        "This script requires Python 3.11 or above to be installed on your system."
     ],
     "description": [
-        "This is a script for downloaded TV shows and movies. It uses scene-standard",
-        "naming conventions to match TV shows and movies and rename/move/sort/organize",
-        "them as you like. It is based on `VideoSort` by Andrey Prygunkov.",
-        "In addition, it will strip obfuscated words from the",
-        "file names."
+        "This script is based on `VideoSort` by Andrey Prygunkov. ", 
+        "It is applicable only for downloaded TV shows and movies. ",
+        "In addition to `VideoSort`'s comprehensive renaming functionality, ",
+        "`DeobfuscationSort` also allows stripping ",
+        "obfuscation suffixes from the downloaded files' names."
     ],
     "options": [
         {
