@@ -14,11 +14,8 @@
         "This script requires Python 3.11 or above to be installed on your system."
     ],
     "description": [
-        "This script is based on `VideoSort` by Andrey Prygunkov. ", 
-        "It is applicable only for downloaded TV shows and movies. ",
-        "In addition to `VideoSort`'s comprehensive renaming functionality, ",
-        "`DeobfuscationSort` also allows stripping ",
-        "obfuscation suffixes from the downloaded files' names."
+        "This script is based on `VideoSort` by Andrey Prygunkov and renames TV show and movie files.",
+        "In addition to `VideoSort`'s comprehensive renaming functionality, `DeobfuscationSort` also strips obfuscation suffixes from the downloaded files' names."
     ],
     "options": [
         {
