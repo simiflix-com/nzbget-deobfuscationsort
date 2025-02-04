@@ -29,11 +29,11 @@ import re
 import shutil
 from pathlib import Path
 
-import difflib
-import guessit
-
 sys.path.insert(0, dirname(__file__) + "/lib")
 sys.stdout.reconfigure(encoding="utf-8")
+
+import difflib
+import guessit
 
 # Exit codes used by NZBGet
 POSTPROCESS_SUCCESS = 93
@@ -1215,8 +1215,6 @@ def construct_path(filename):
         for key, name in REPLACE_AFTER.items():
             path = path.replace(key, name)
 
-    path = path.replace("%up", "..")
-
     # Uppercase all characters encased in {{}}
     path = to_uppercase(path)
 
@@ -1228,13 +1226,15 @@ def construct_path(filename):
     path = strip_folders(path)
     path = path + ext
 
+    path = path.replace("%up", "..")
+
     path = os.path.normpath(path)
     dest_dir = os.path.normpath(dest_dir)
 
     if verbose:
         loginf("path after cleanup: %s" % path)
 
-    new_path = os.path.join(dest_dir, *path.split(os.sep))
+    new_path = os.path.normpath(os.path.join(dest_dir, *path.split(os.sep)))
 
     if verbose:
         loginf("destination path: %s" % new_path)
@@ -1361,7 +1361,9 @@ for filename in moved_dst_files:
         finaldir += dir
 
 if finaldir != "":
-    loginf("[NZB] FINALDIR=%s" % finaldir)
+    # Ensure that this is output without a prefix like `INFO` or `WARNING`
+    # so that NZBGet can parse this output correctly based on the prefix 
+    print("[NZB] FINALDIR=%s" % finaldir)
 
 # Cleanup if:
 # 1) files were moved AND

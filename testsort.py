@@ -30,11 +30,6 @@ from pathlib import Path
 import re
 import logging
 
-# Configure logging for debugging
-logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
-
-print("Test script for DeobfuscationSort")
-
 # Exit codes used by NZBGet
 POSTPROCESS_SUCCESS = 93
 POSTPROCESS_NONE = 95
@@ -66,24 +61,22 @@ for opt, arg in options:
         test_ids.append(arg)
 
 
+# Configure logging for debugging
+logging.basicConfig(level=(verbose and logging.DEBUG or logging.WARN), format="%(levelname)s: %(message)s")
+
+logging.debug("Test script for DeobfuscationSort")
+
 def get_python():
     if os.name == "nt":
         return "python"
     return "python3"
 
-
 def set_defaults():
-    # NZBGet global options
-    os.environ["NZBOP_SCRIPTDIR"] = "test"
-    os.environ["NZBPO_CLEANUP"] = "yes" if cleanup else "no"
-    os.environ["NZBPO_PREVIEW"] = "yes" if preview else "no"
-    os.environ["NZBPO_VERBOSE"] = "yes" if verbose else "no"
-
     # script options
-    os.environ["NZBPO_MOVIESDIR"] = os.path.join(TEST_DIR, "movies")
-    os.environ["NZBPO_SERIESDIR"] = os.path.join(TEST_DIR, "series")
-    os.environ["NZBPO_DATEDDIR"] = os.path.join(TEST_DIR, "dated")
-    os.environ["NZBPO_OTHERTVDIR"] = os.path.join(TEST_DIR, "tv")
+    os.environ["NZBPO_MOVIESDIR"] = get_test_dir_path_file("movies").as_posix()
+    os.environ["NZBPO_SERIESDIR"] = get_test_dir_path_file("series").as_posix()
+    os.environ["NZBPO_DATEDDIR"] = get_test_dir_path_file("dated").as_posix()
+    os.environ["NZBPO_OTHERTVDIR"] = get_test_dir_path_file("tv").as_posix()
     os.environ["NZBPO_VIDEOEXTENSIONS"] = ".mkv,.mp4,.avi"
     os.environ["NZBPO_SATELLITEEXTENSIONS"] = ".srt"
     os.environ["NZBPO_MULTIPLEEPISODES"] = "list"
@@ -100,7 +93,9 @@ def set_defaults():
     os.environ["NZBPO_RELEASEGROUPS"] = "3DM,AJP69,BHDStudio,BMF,BTN,BV,BeyondHD,CJ,CLASS,CMRG,CODEX,CONSPIR4CY,CRX,CRiSC,Chotab,CtrlHD,D-Z0N3,D-Z0N3,D-Z0N3,DEViANCE,DON,Dariush,DrinkOrDie,E.N.D,E1,EA,EDPH,ESiR,EVO,EVO,EViLiSO,EXCiSION,EbP,Echelon,FAiRLiGHT,FLUX,FTW-HD,FilmHD,FoRM,FraMeSToR,FraMeSToR,GALAXY,GS88,Geek,HANDJOB,HATRED,HDMaNiAcS,HYBRID,HiDt,HiFi,HiP,Hoodlum,IDE,KASHMiR,KRaLiMaRKo,Kalisto,LEGi0N,LiNG,LoRD,MZABI,Myth,NCmt,NTb,NTb,NyHD,ORiGEN,P0W4HD,PARADOX,PTer,Penumbra,Positive,RELOADED,REVOLT,Radium,Risciso,SA89,SKIDROW,SMURF,STEAMPUNKS,SaNcTi,SbR,SiMPLE,TBB,TDD,TEPES,TayTo,ThD,VLAD,ViTALiTY,VietHD,W4NK3R,WMING,ZIMBO,ZQ,c0ke,de[42],decibeL,hdalx,iFT,iON,luvBB,maVen,nmd,playHD,playWEB"
     os.environ["NZBPO_SERIESYEAR"] = "yes"
     os.environ["NZBPO_OVERWRITE"] = "no"
-    os.environ["NZBPO_CLEANUP"] = "no"
+    os.environ["NZBPO_CLEANUP"] = cleanup and "yes" or "no"
+    os.environ["NZBPO_PREVIEW"] = preview and "yes" or "no"
+    os.environ["NZBPO_VERBOSE"] = "yes"
 
     # properties of nzb-file
     os.environ["NZBPP_DIRECTORY"] = TEST_DIR
@@ -223,7 +218,10 @@ def execute_deobfuscation_sort(test_file):
 def run_test(testobj):
     set_defaults()
     for prop_name in testobj:
-        os.environ[str(prop_name)] = str(testobj[prop_name])
+        if str(prop_name) in ["NZBPO_MOVIESDIR", "NZBPO_SERIESDIR", "NZBPO_DATEDDIR", "NZBPO_OTHERTVDIR"]:
+            os.environ[str(prop_name)] = get_test_dir_path_file(str(testobj[prop_name])).as_posix()
+        else:
+            os.environ[str(prop_name)] = str(testobj[prop_name])
         if verbose:
             print("%s: %s" % (prop_name, os.environ[prop_name]))
     input_file_spec = testobj["INPUTFILE"]
