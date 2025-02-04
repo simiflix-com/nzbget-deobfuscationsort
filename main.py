@@ -27,9 +27,10 @@ import sys
 import traceback
 import re
 import shutil
+import difflib
 from pathlib import Path
 
-sys.path.insert(0, dirname(__file__) + "/lib")
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 sys.stdout.reconfigure(encoding="utf-8")
 
 import difflib
@@ -57,11 +58,9 @@ def logerr(msg):
 
 
 # Check if directory still exist (for post-process again)
-if not os.path.exists(os.environ["NZBPP_DIRECTORY"]):
-    loginf(
-        "Destination directory %s doesn't exist, exiting"
-        % os.environ["NZBPP_DIRECTORY"]
-    )
+nzbp_directory = os.environ["NZBPP_DIRECTORY"]
+if not (nzbp_directory and Path(nzbp_directory).is_dir()):
+    loginf(f'NZBP directory "{nzbp_directory}" does not exist, exiting')
     sys.exit(POSTPROCESS_NONE)
 
 # Check par and unpack status for errors
@@ -70,9 +69,7 @@ if (
     or os.environ["NZBPP_PARSTATUS"] == "4"
     or os.environ["NZBPP_UNPACKSTATUS"] == "1"
 ):
-    logwar(
-        'Download of "%s" has failed, exiting' % (os.environ["NZBPP_NZBNAME"])
-    )
+    logwar(f'Download of "{os.environ["NZBPP_NZBNAME"]}" has failed, exiting')
     sys.exit(POSTPROCESS_NONE)
 
 # Check if all required script config options are present in config file
