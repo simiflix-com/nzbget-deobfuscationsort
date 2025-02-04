@@ -2,5 +2,8 @@
 *.pyo
 .DS_Store
 .vscode
+.envrc
+.python-version
+.python-virtualenv
 __
 __pycache__
