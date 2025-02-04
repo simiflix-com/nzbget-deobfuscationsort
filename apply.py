@@ -16,6 +16,8 @@ import guessit
 class Apply:
     def __init__(self, options: Options = None):
         self.options = options and options or Options()
+
+        # Indicate if any errors occurred that should prohibit `cleanup`
         self.errors = False
 
         # Indicate if any files have been moved and NZB needs to be notified
@@ -227,7 +229,7 @@ class Apply:
                     video_files.append(downloaded_file_path)
 
                 except Exception as e:
-                    errors = True
+                    self.errors = True
                     logerr("Failed: %s" % downloaded_file)
                     logerr("Exception: %s" % e)
                     traceback.print_exc()
@@ -255,7 +257,7 @@ class Apply:
                         self.move_satellites(video_file_path, dest_path)
 
             except Exception as e:
-                errors = True
+                self.errors = True
                 logerr(f'Failed renaming video file "{video_file_path}"')
                 logerr("%s" % e)
                 traceback.print_exc()
@@ -279,5 +281,5 @@ class Apply:
         # 1) files were moved AND
         # 2) no errors happen AND
         # 3) all remaining files are smaller than <MinSize>
-        if self.options.cleanup and self.files_moved and not errors:
+        if self.options.cleanup and self.files_moved and not self.errors:
             self.cleanup_download_dir()
