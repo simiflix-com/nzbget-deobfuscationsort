@@ -47,10 +47,13 @@ class Apply:
     def optimized_move(old, new):
         try:
             os.rename(old, new)
+            logdet(f'optimized_move: os.rename "{old}" --> "{new}"')
         except OSError as ex:
             logdet("Rename failed ({}), performing copy: {}".format(ex, new))
             shutil.copyfile(old, new)
+            logdet(f'optimized_move: shutil.copyfile "{old}" --> "{new}"')
             os.remove(old)
+            logdet(f'optimized_move: os.remove "{old}"')
 
     def rename(self, old, new):
         """Moves the file to its sorted location.
@@ -58,9 +61,12 @@ class Apply:
         """
         if os.path.exists(new) or new in self.moved_dst_files:
             if self.options.overwrite and new not in self.moved_dst_files:
-                os.remove(new)
-                Apply.optimized_move(old, new)
-                loginf("Overwrote: %s" % new)
+                if not self.options.preview:
+                    os.remove(new)
+                loginf(f'rename: os.removed "{new}"')
+                if not self.options.preview:
+                    Apply.optimized_move(old, new)
+                loginf(f'rename: optimized_move "{old}" --> "{new}"')
             else:
                 # rename to filename.(2).ext, filename.(3).ext, etc.
                 new = self.unique_name(new)
@@ -70,7 +76,7 @@ class Apply:
                 if not os.path.exists(os.path.dirname(new)):
                     os.makedirs(os.path.dirname(new))
                 Apply.optimized_move(old, new)
-            loginf("Moved: %s" % new)
+            loginf(f'rename: optimized_move "{old}" --> "{new}"')
         self.moved_src_files.append(old)
         self.moved_dst_files.append(new)
         return new
