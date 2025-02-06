@@ -6,7 +6,6 @@ from determine import Determine
 from nzbget_utils import logdet, loginf, logwar, logerr
 import traceback
 import difflib
-
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
@@ -17,7 +16,9 @@ class Apply:
     PREVIEW_PREFIX = "[PREVIEW] "
 
     def __init__(self, options: Options = None):
-        self.options = options and options or Options()
+        self.options = options if options else Options()
+        self.nzb_properties = self.options.nzb_properties
+        self.processing_parameters = self.options.processing_parameters
 
         if not self.options.preview:
             Apply.PREVIEW_PREFIX = ""
@@ -33,14 +34,14 @@ class Apply:
         # List of moved files (destination path)
         self.moved_dst_files = []
 
-    def unique_name(self, dst_path: Path) -> Path:
+    def unique_name(self, dst_file: Path) -> Path:
         """Adds unique numeric suffix to destination file name to avoid overwriting
         such as "filename.(2).ext", "filename.(3).ext", etc.
         If an existing file was created by the script it is renamed to "filename.(1).ext".
         """
-        parent = dst_path.parent
-        stem = dst_path.stem
-        suffix = dst_path.suffix
+        parent = dst_file.parent
+        stem = dst_file.stem
+        suffix = dst_file.suffix
         suffix_num = 2
         while True:
             unique_path = (
@@ -73,9 +74,9 @@ class Apply:
 
     def move_file(self, src_file, dest_file):
         """Moves the file to its sorted location.
-        It creates directories to `dst_path` and moves the file from `src_path` there.
+        It creates directories to `dest_file` and moves the file from `src_file` there.
         """
-        # Ensure the arguments are `Path` objects
+        # Ensure the arguments are Path objects
         if not isinstance(src_file, Path):
             src_file = Path(src_file)
         if not isinstance(dest_file, Path):
@@ -100,16 +101,16 @@ class Apply:
                 # Rename to a unique filename instead
                 dest_file = self.unique_name(dest_file)
                 loginf(
-                    f'move_file: overwrite={self.options.overwrite}: resursively call move_file("{src_file}", "{dest_file}")'
+                    f'move_file: overwrite={self.options.overwrite}: recursively call move_file("{src_file}", "{dest_file}")'
                 )
                 self.move_file(src_file, dest_file)
         else:
             # Destination file does not exist and is not in the list of moved files
             self._move_file_impl(src_file, dest_file)
-            loginf(f'move_file: _move_file_impl("{src_file}", "{dest_file})" OK')
+            loginf(f'move_file: _move_file_impl("{src_file}", "{dest_file}") OK')
         self.moved_src_files.append(src_file)
         self.moved_dst_files.append(dest_file)
-        logdet(f"move_file: file at dst_path is {Apply._file_size_human(dest_file)}")
+        logdet(f"move_file: file at dest_file is {Apply._file_size_human(dest_file)}")
         logdet(f"move_file: returning {dest_file}")
         return dest_file
 
@@ -140,9 +141,9 @@ class Apply:
             fext = sat_file.suffix
             fextlo = fext.lower()
 
-            if fextlo in self.options._SATELLITE_EXTENSIONS:
+            if fextlo in self.processing_parameters.satellite_extensions:
                 subpart = ""
-                if fextlo[1:] in self.options._SATELLITE_EXTENSIONS:
+                if fextlo[1:] in self.processing_parameters.satellite_extensions:
                     guess = guessit.guessit(filename)
                     if guess and "subtitle_language" in guess:
                         # Remove the last dot and subsequent characters from the file stem.
@@ -211,7 +212,7 @@ class Apply:
         """Remove the download directory if it (or any subfolder) does not contain
         "important" files (important = size >= min_size).
         """
-        download_dir = Path(self.options.download_dir)
+        download_dir = Path(self.nzb_properties.download_dir)
         loginf(f'cleanup_download_dir("{download_dir}")')
 
         # Check if there are any big files remaining
@@ -264,7 +265,7 @@ class Apply:
         # Process all the files in download_dir and its subdirectories
         video_files = []
 
-        for root, dirs, downloaded_files in os.walk(self.options.download_dir):
+        for root, dirs, downloaded_files in os.walk(self.nzb_properties.download_dir):
             for downloaded_file in downloaded_files:
                 try:
                     downloaded_file_path = Path(root) / downloaded_file
@@ -272,7 +273,7 @@ class Apply:
                     # Check extension
                     if (
                         downloaded_file_path.suffix.lower().lstrip(".")
-                        not in self.options._VIDEO_EXTENSIONS
+                        not in self.processing_parameters.video_extensions
                     ):
                         continue
 
@@ -295,6 +296,8 @@ class Apply:
 
         determine = Determine(video_files, self.options)
 
+        move_satellites = len(self.processing_parameters.satellite_extensions) > 0
+
         for video_file_path in video_files:
             try:
                 dest = determine.construct_path(str(video_file_path))
@@ -305,7 +308,7 @@ class Apply:
                     self.move_file(video_file_path, dest_file)
                     self.files_moved = True
 
-                    if self.files_moved and self.options.satellites:
+                    if self.files_moved and move_satellites:
                         # Move satellite files
                         self.move_satellites(video_file_path, dest_file)
 
@@ -314,15 +317,14 @@ class Apply:
                 logerr(f'Exception when renaming video file "{video_file_path}": {e}')
                 logerr(traceback.format_exc())
 
-        # Inform NZBGet about new destination path
         finaldir = ""
         uniquedirs = []
         for filename in self.moved_dst_files:
-            dir = os.path.dirname(filename)
-            if dir not in uniquedirs:
-                uniquedirs.append(dir)
+            dir_ = str(filename.parent)
+            if dir_ not in uniquedirs:
+                uniquedirs.append(dir_)
                 finaldir += "|" if finaldir != "" else ""
-                finaldir += dir
+                finaldir += dir_
 
         if finaldir != "":
             # Ensure that this is output without a prefix like `INFO` or `WARNING`

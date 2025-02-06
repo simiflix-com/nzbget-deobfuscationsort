@@ -29,9 +29,16 @@ class Determine:
     def __init__(self, video_files: list[Path], options: Options):
         self.video_files = video_files
         self.options = options
+        self.nzb_properties = self.options.nzb_properties
+        self.processing_parameters = self.options.processing_parameters
         # Determine whether we can use the NZB name for the destination path
-        self.use_nzb_name = self.options.prefer_nzb_name and len(video_files) == 1
-        self.force_tv = self.options.category.lower() in self.options.tv_categories
+        self.use_nzb_name = (
+            self.processing_parameters.prefer_nzb_name and len(video_files) == 1
+        )
+        self.force_tv = (
+            self.nzb_properties.category.lower()
+            in self.processing_parameters.tv_categories
+        )
         # Separator character used between file name and opening brace
         # for duplicate files such as "My Movie (2).mkv"
         # Class name: `ScriptState`
@@ -39,13 +46,16 @@ class Determine:
 
         self.deobfuscate_re = None
         # Construct deobfuscation regex from words if provided
-        if len(self.options.deobfuscate_words) and len(
-            self.options.deobfuscate_words[0]
+        if len(self.processing_parameters.deobfuscate_words) and len(
+            self.processing_parameters.deobfuscate_words[0]
         ):
             self.deobfuscate_re = re.compile(
                 r"(.+?-[.0-9a-z]+)(?:\W+(?:{})[a-z0-9]*\W*)*$".format(
                     "|".join(
-                        [re.escape(word) for word in self.options.deobfuscate_words]
+                        [
+                            re.escape(word)
+                            for word in self.processing_parameters.deobfuscate_words
+                        ]
                     )
                 ),
                 re.IGNORECASE,
@@ -61,7 +71,7 @@ class Determine:
             )
 
         loginf(
-            f"Determine: use_nzb_name={self.use_nzb_name} force_tv={self.force_tv} ({self.options.category} {self.force_tv and 'in' or 'not in'} {self.options.tv_categories})"
+            f"Determine: use_nzb_name={self.use_nzb_name} force_tv={self.force_tv} ({self.nzb_properties.category} {self.force_tv and 'in' or 'not in'} {self.processing_parameters.tv_categories})"
         )
 
     def path_subst(path, mapping):
@@ -134,7 +144,7 @@ class Determine:
             logerr(
                 "Cannot de-obfuscate NZB dirname: "
                 'invalid value for configuration value "DeobfuscateWords": "{}"'.format(
-                    self.options.deobfuscate_words
+                    self.processing_parameters.deobfuscate_words
                 )
             )
 
@@ -150,7 +160,8 @@ class Determine:
                 dirname_title = []
 
                 release_groups_list = [
-                    re.escape(token) for token in self.options.release_groups
+                    re.escape(token)
+                    for token in self.processing_parameters.release_groups
                 ]
                 release_groups_re = "|".join(release_groups_list)
 
@@ -248,12 +259,12 @@ class Determine:
         title = title.replace("'S", "'s")
 
         # Make sure some words such as 'and' or 'of' stay lowercased
-        for x in self.options.lower_words:
+        for x in self.processing_parameters.lower_words:
             xtitled = x.title()
             title = Determine.replace_word(title, xtitled, x)
 
         # Make sure some words such as 'III' or 'IV' stay uppercased
-        for x in self.options.upper_words:
+        for x in self.processing_parameters.upper_words:
             xtitled = x.title()
             title = Determine.replace_word(title, xtitled, x)
 
@@ -460,7 +471,7 @@ class Determine:
 
     def add_common_mapping(self, old_filename, guess, mapping):
         # Original dir name, file name and extension
-        original_dirname = os.path.basename(self.options.download_dir)
+        original_dirname = os.path.basename(self.nzb_properties.download_dir)
         original_fname, original_fext = os.path.splitext(
             os.path.split(os.path.basename(old_filename))[1]
         )
@@ -597,19 +608,23 @@ class Determine:
             episodes = [str(item) for item in guess.get("episode")]
             episode_num_all = ""
             episode_num_just = ""
-            if self.options.multiple_episodes == "range":
+            if self.processing_parameters.multiple_episodes == "range":
                 episode_num_all = (
-                    episodes[0] + self.options.episode_separator + episodes[-1]
+                    episodes[0]
+                    + self.processing_parameters.episode_separator
+                    + episodes[-1]
                 )
                 episode_num_just = (
                     episodes[0].rjust(2, "0")
-                    + self.options.episode_separator
+                    + self.processing_parameters.episode_separator
                     + episodes[-1].rjust(2, "0")
                 )
             else:  # if multiple_episodes == 'list':
                 for episode_num in episodes:
                     ep_prefix = (
-                        self.options.episode_separator if episode_num_all != "" else ""
+                        self.processing_parameters.episode_separator
+                        if episode_num_all != ""
+                        else ""
                     )
                     episode_num_all += ep_prefix + episode_num
                     episode_num_just += ep_prefix + episode_num.rjust(2, "0")
@@ -737,7 +752,7 @@ class Determine:
         Returns:
             str: The cleaned-up filename.
         """
-        start = os.path.dirname(self.options.download_dir)
+        start = os.path.dirname(self.nzb_properties.download_dir)
         new_name = filename[len(start) + 1 :]
         logdet(f"Stripped filename: {new_name}")
 
@@ -770,7 +785,7 @@ class Determine:
         else:
             loginf("All file path parts are obfuscated, using obfuscated NZB name")
             new_name = (
-                os.path.basename(self.options.download_dir)
+                os.path.basename(self.nzb_properties.download_dir)
                 + os.path.splitext(filename)[1]
             )
 
@@ -802,35 +817,35 @@ class Determine:
             guess (dict): The guess dictionary to modify.
         """
         dnzb_used = False
-        if self.options.dnzb_proper_name != "":
+        if self.nzb_properties.dnzb_proper_name != "":
             dnzb_used = True
             logdet("Using DNZB-ProperName")
             if guess["vtype"] == "series":
-                proper_name = self.options.dnzb_proper_name
-                if not self.options.series_year:
+                proper_name = self.nzb_properties.dnzb_proper_name
+                if not self.processing_parameters.series_year:
                     proper_name = self.remove_year(proper_name)
                 guess["title"] = proper_name
             else:
-                guess["title"] = self.options.dnzb_proper_name
+                guess["title"] = self.nzb_properties.dnzb_proper_name
 
-        if self.options.dnzb_episode_name != "" and guess["vtype"] == "series":
+        if self.nzb_properties.dnzb_episode_name != "" and guess["vtype"] == "series":
             dnzb_used = True
             logdet("Using DNZB-EpisodeName")
-            guess["episode_title"] = self.options.dnzb_episode_name
+            guess["episode_title"] = self.nzb_properties.dnzb_episode_name
 
-        if self.options.dnzb_movie_year != "":
+        if self.nzb_properties.dnzb_movie_year != "":
             dnzb_used = True
             logdet("Using DNZB-MovieYear")
-            guess["year"] = self.options.dnzb_movie_year
+            guess["year"] = self.nzb_properties.dnzb_movie_year
 
-        if self.options.dnzb_more_info != "":
+        if self.nzb_properties.dnzb_more_info != "":
             dnzb_used = True
             logdet("Using DNZB-MoreInfo")
             if guess["type"] == "movie":
                 regex = re.compile(
                     r"^http://www.imdb.com/title/(tt[0-9]+)/$", re.IGNORECASE
                 )
-                matches = regex.match(self.options.dnzb_more_info)
+                matches = regex.match(self.nzb_properties.dnzb_more_info)
                 if matches:
                     guess["imdb"] = matches.group(1)
                     guess["cpimdb"] = "cp(" + guess["imdb"] + ")"
@@ -887,11 +902,11 @@ class Determine:
         """
         if self.use_nzb_name:
             guessfilename = (
-                os.path.basename(self.options.download_dir)
+                os.path.basename(self.nzb_properties.download_dir)
                 + os.path.splitext(filename)[1]
             )
             logdet(
-                f'Input for GuessIt: NZB name "{self.options.download_dir}" with filename "filename" --> "{guessfilename}"'
+                f'Input for GuessIt: NZB name "{self.nzb_properties.download_dir}" with filename "filename" --> "{guessfilename}"'
             )
         else:
             guessfilename = self.strip_useless_parts(filename)
@@ -946,7 +961,7 @@ class Determine:
 
         # detect if year is part of series name
         if guess["type"] == "episode":
-            if self.options.series_year:
+            if self.processing_parameters.series_year:
                 if (
                     guess.get("year") is not None
                     and guess.get("title") is not None
@@ -971,7 +986,7 @@ class Determine:
         else:
             guess["vtype"] = guess["type"]
 
-        if self.options.dnzb_headers:
+        if self.processing_parameters.dnzb_headers:
             self.apply_dnzb_headers(guess)
 
         logdet(f"Final GuessIt structure:\n{Determine.format_matches_dict(guess)}")
@@ -1004,27 +1019,27 @@ class Determine:
         self.add_common_mapping(filename, guess, mapping)
 
         if type == "movie":
-            dest_dir = self.options.movies_dir
-            format = self.options.movies_format
+            dest_dir = self.processing_parameters.movies_dir
+            format = self.processing_parameters.movies_format
             self.add_movies_mapping(guess, mapping)
         elif type == "series":
-            dest_dir = self.options.series_dir
-            format = self.options.series_format
+            dest_dir = self.processing_parameters.series_dir
+            format = self.processing_parameters.series_format
             self.add_series_mapping(guess, mapping)
         elif type == "dated":
-            dest_dir = self.options.dated_dir
-            format = self.options.dated_format
+            dest_dir = self.processing_parameters.dated_dir
+            format = self.processing_parameters.dated_format
             self.add_dated_mapping(guess, mapping)
         elif type == "othertv":
-            dest_dir = self.options.othertv_dir
-            format = self.options.othertv_format
+            dest_dir = self.processing_parameters.othertv_dir
+            format = self.processing_parameters.othertv_format
             self.add_movies_mapping(guess, mapping)
         else:
             loginf("Could not determine video type for %s" % filename)
             return None
 
         if dest_dir == "":
-            dest_dir = os.path.dirname(self.options.download_dir)
+            dest_dir = os.path.dirname(self.nzb_properties.download_dir)
 
         # Find out a char most suitable as dupe_separator
         self.guess_dupe_separator(format)

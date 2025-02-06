@@ -30,8 +30,6 @@ from pathlib import Path
 import re
 import logging
 
-from options import Options
-
 # Exit codes used by NZBGet
 POSTPROCESS_SUCCESS = 93
 POSTPROCESS_NONE = 95
@@ -45,6 +43,11 @@ TEST_DIR = ROOT_DIR + "/__"
 DEOBFUSCATION_SORT_ENTRYPOINT = Path(ROOT_DIR) / "main.py"
 # The default size of the files to create for testing
 FILESIZE_DEFAULT = 10
+
+# GuessIt supported video extensions
+_VIDEO_EXTENSIONS = ["avi", "mkv", "mov", "mp4", "webm", "wmv"]
+# GuessIt supported subtitle extensions
+_SATELLITE_EXTENSIONS = ["srt", "idx", "sub", "ssa", "ass"]
 
 cleanup = False
 preview = False
@@ -87,8 +90,8 @@ def set_defaults():
     os.environ["NZBPO_SERIESDIR"] = get_test_dir_path_file("series").as_posix()
     os.environ["NZBPO_DATEDDIR"] = get_test_dir_path_file("dated").as_posix()
     os.environ["NZBPO_OTHERTVDIR"] = get_test_dir_path_file("tv").as_posix()
-    os.environ["NZBPO_VIDEOEXTENSIONS"] = ",".join(Options._VIDEO_EXTENSIONS)
-    os.environ["NZBPO_SATELLITEEXTENSIONS"] = ",".join(Options._SATELLITE_EXTENSIONS)
+    os.environ["NZBPO_VIDEOEXTENSIONS"] = ",".join(_VIDEO_EXTENSIONS)
+    os.environ["NZBPO_SATELLITEEXTENSIONS"] = ",".join(_SATELLITE_EXTENSIONS)
     os.environ["NZBPO_MULTIPLEEPISODES"] = "list"
     os.environ["NZBPO_EPISODESEPARATOR"] = "-"
     os.environ["NZBPO_MINSIZE"] = "0"
@@ -182,7 +185,7 @@ def get_video_file_in_finaldir(finaldir_path):
 
     for entry in finaldir_path.iterdir():
         if entry.is_file():
-            if entry.suffix.lower().lstrip(".") in Options._VIDEO_EXTENSIONS:
+            if entry.suffix.lower().lstrip(".") in _VIDEO_EXTENSIONS:
                 return Path("/") / entry.relative_to(TEST_DIR)
     return None
 
