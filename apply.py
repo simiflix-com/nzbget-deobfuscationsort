@@ -302,7 +302,13 @@ class Apply:
             )
             tree_output_list.append(tree_output)
 
-        return f'{prefix} "{root_dirs}":\n {tree_output}'
+        root_dirs_str = (
+            ", ".join(str(root_dir) for root_dir in root_dirs)
+            if len(root_dirs) > 1
+            else str(root_dirs[0])
+        )
+        tree_output = "\n".join(tree_output_list)
+        return f'{prefix} "{root_dirs_str}":\n {tree_output}'
 
     def run(self):
         # Process all the files in download_dir and its subdirectories
