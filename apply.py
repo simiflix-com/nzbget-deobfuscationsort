@@ -277,6 +277,9 @@ class Apply:
             prefix (str): A string prefix to include in the log message.
         """
 
+        if not root_dirs:
+            return f'{prefix} "{root_dirs}":\n <empty>'
+
         if not isinstance(root_dirs, list):
             root_dirs = [root_dirs]
 
