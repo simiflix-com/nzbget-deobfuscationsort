@@ -33,21 +33,21 @@ class Apply:
         # List of moved files (destination path)
         self.moved_dst_files = []
 
-    def unique_name(self, new):
+    def unique_name(self, dst_path: Path) -> Path:
         """Adds unique numeric suffix to destination file name to avoid overwriting
         such as "filename.(2).ext", "filename.(3).ext", etc.
-        If existing file was created by the script it is renamed to "filename.(1).ext".
+        If an existing file was created by the script it is renamed to "filename.(1).ext".
         """
-        fname, fext = os.path.splitext(new)
+        parent = dst_path.parent
+        stem = dst_path.stem
+        suffix = dst_path.suffix
         suffix_num = 2
         while True:
-            new_name = (
-                fname + self.options.dupe_separator + "(" + str(suffix_num) + ")" + fext
-            )
-            if not os.path.exists(new_name) and new_name not in self.moved_dst_files:
+            unique_path = parent / f"{stem}{self.options.dupe_separator}({suffix_num}){suffix}"
+            if not unique_path.exists() and unique_path not in self.moved_dst_files:
                 break
             suffix_num += 1
-        return new_name
+        return unique_path
 
     def optimized_move(self, src_path: Path, dst_path: Path):
         try:
@@ -301,9 +301,8 @@ class Apply:
 
             except Exception as e:
                 self.errors = True
-                logerr(f'Failed renaming video file "{video_file_path}"')
-                logerr("%s" % e)
-                traceback.print_exc()
+                logerr(f'Exception when renaming video file "{video_file_path}": {e}')
+                logerr(traceback.format_exc())
 
         # Inform NZBGet about new destination path
         finaldir = ""
