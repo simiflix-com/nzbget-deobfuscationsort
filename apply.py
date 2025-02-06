@@ -257,15 +257,68 @@ class Apply:
         return f"{size:.2f}PB"
 
     @staticmethod
-    def _describe_file(file_path):
+    def _describe_file(file_path, relative_to="/"):
         """Returns a string describing the file at the given path"""
-        return f'"{str(file_path)}[{Apply._file_size_human(file_path)}]"'
+        file_path_str = str(file_path)
+        if (
+            relative_to is not None
+            and relative_to != "/"
+            and file_path.is_relative_to(relative_to)
+        ):
+            file_path_str = str(file_path.relative_to(relative_to))
+        return f'"{file_path_str}" [{Apply._file_size_human(file_path)}]'
 
-    def apply(self):
+    def _describe_directory_tree(self, root_dirs: Path, prefix: str = "") -> None:
+        """Logs the directory tree starting from `root_dir` with a message prefix.
+
+        Arguments:
+            root_dir (Path): The root directory whose tree will be logged.
+            relative_to (Path): The directory to which the root_dir is relative.
+            prefix (str): A string prefix to include in the log message.
+        """
+
+        if not isinstance(root_dirs, list):
+            root_dirs = [root_dirs]
+
+        tree_output_list = []
+
+        common_relative_to = root_dirs[0]
+        while len(common_relative_to.parts) > 1:
+            if all(
+                root_dir.is_relative_to(common_relative_to) for root_dir in root_dirs
+            ):
+                break
+            common_relative_to = common_relative_to.parent
+
+        for root_dir in root_dirs:
+            tree_output = "\n".join(
+                [
+                    Apply._describe_file(f, common_relative_to)
+                    for f in root_dir.rglob("*")
+                ]
+            )
+            tree_output_list.append(tree_output)
+
+        return f'{prefix} "{root_dirs}":\n {tree_output}'
+
+    def run(self):
         # Process all the files in download_dir and its subdirectories
+        download_dir = self.nzb_properties.download_dir
+        loginf(f'Processing files in "{download_dir}"')
+        assert download_dir.is_dir()
+
+        # Dump initial contents of the download directory
+        logdet(
+            self._describe_directory_tree(
+                download_dir,
+                "# Initial download directory:",
+            )
+        )
+
+        # Gather all video files in the download directory
         video_files = []
 
-        for root, dirs, downloaded_files in os.walk(self.nzb_properties.download_dir):
+        for root, dirs, downloaded_files in os.walk(download_dir):
             for downloaded_file in downloaded_files:
                 try:
                     downloaded_file_path = Path(root) / downloaded_file
@@ -300,7 +353,7 @@ class Apply:
 
         for video_file_path in video_files:
             try:
-                dest = determine.construct_path(str(video_file_path))
+                dest = determine.construct_path(video_file_path)
 
                 if dest:
                     dest_file = Path(dest)
@@ -317,23 +370,32 @@ class Apply:
                 logerr(f'Exception when renaming video file "{video_file_path}": {e}')
                 logerr(traceback.format_exc())
 
-        finaldir = ""
-        uniquedirs = []
-        for filename in self.moved_dst_files:
-            dir_ = str(filename.parent)
-            if dir_ not in uniquedirs:
-                uniquedirs.append(dir_)
-                finaldir += "|" if finaldir != "" else ""
-                finaldir += dir_
+        final_dest_dirs = [dst_file.parent for dst_file in self.moved_dst_files]
 
-        if finaldir != "":
+        if len(final_dest_dirs):
             # Ensure that this is output without a prefix like `INFO` or `WARNING`
             # so that NZBGet can parse this output correctly based on the prefix
+            finaldir = "|".join(str(dst_dir) for dst_dir in final_dest_dirs)
             print("[NZB] FINALDIR=%s" % finaldir)
 
         # Cleanup if:
         # 1) files were moved AND
-        # 2) no errors happen AND
+        # 2) no errors happened AND
         # 3) all remaining files are smaller than <MinSize>
         if self.options.cleanup and self.files_moved and not self.errors:
             self.cleanup_download_dir()
+
+        logdet(
+            self._describe_directory_tree(
+                download_dir,
+                "# Resulting download directory",
+            )
+        )
+
+        logdet(
+            self._describe_directory_tree(
+                final_dest_dirs, "# Unique destination directory"
+            )
+        )
+
+        return self

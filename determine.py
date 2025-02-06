@@ -26,14 +26,14 @@ class Determine:
     _RE_UPPERCASE = re.compile(r"{{([^{]*)}}")
     _RE_LOWERCASE = re.compile(r"{([^{]*)}")
 
-    def __init__(self, video_files: list[Path], options: Options):
-        self.video_files = video_files
+    def __init__(self, videofiles: list[Path], options: Options):
+        self.videofiles = videofiles
         self.options = options
         self.nzb_properties = self.options.nzb_properties
         self.processing_parameters = self.options.processing_parameters
         # Determine whether we can use the NZB name for the destination path
         self.use_nzb_name = (
-            self.processing_parameters.prefer_nzb_name and len(video_files) == 1
+            self.processing_parameters.prefer_nzb_name and len(videofiles) == 1
         )
         self.force_tv = (
             self.nzb_properties.category.lower()
@@ -1008,88 +1008,124 @@ class Determine:
                 self.dupe_separator = "_"
                 return
 
-    def construct_path(self, filename):
-        """Parses the filename and generates new name for renaming"""
+    def get_video_type_map(self, video_type: str):
+        """
+        Returns a tuple (dest_dir, fmt, mapping_func) based solely on the environment parameters.
+        This processing of configuration values remains constant for all video files,
+        independent of GuessIt parsing.
 
-        loginf("filename: %s" % filename)
+        Args:
+            video_type (str): The video type (e.g., "movie", "series", "dated", "othertv").
 
-        guess = self.guess_info(filename)
-        type = guess.get("vtype")
+        Returns:
+            tuple: (dest_dir, fmt, mapping_func) where dest_dir is the destination directory,
+                fmt is the format string, and mapping_func is the function to add
+                type-specific mapping details.
+                Returns (None, None, None) if the type isn't recognized.
+        """
+        if not self.processing_parameters.video_type_map:
+            video_type_params = {
+                "movie": (
+                    self.processing_parameters.movies_dir,
+                    self.processing_parameters.movies_format,
+                    self.add_movies_mapping,
+                ),
+                "series": (
+                    self.processing_parameters.series_dir,
+                    self.processing_parameters.series_format,
+                    self.add_series_mapping,
+                ),
+                "dated": (
+                    self.processing_parameters.dated_dir,
+                    self.processing_parameters.dated_format,
+                    self.add_dated_mapping,
+                ),
+                "othertv": (
+                    self.processing_parameters.othertv_dir,
+                    self.processing_parameters.othertv_format,
+                    self.add_movies_mapping,
+                ),
+            }
+            self.processing_parameters.video_type_map = video_type_params.get(
+                video_type, (None, None, None)
+            )
+        self.dest_dir = self.processing_parameters.video_type_map[0]
+
+        # Fallback if the destination directory is not set
+        if not self.dest_dir:
+            self.dest_dir = self.nzb_properties.download_dir.parent
+
+        return self.processing_parameters.video_type_map[1:]
+
+    def construct_path(self, videofile_path: Path) -> Path:
+        """Parses the filename and generates a new name for renaming.
+
+        Expects `filename` to be a Path object and works exclusively with pathlib.
+        """
+        loginf(f'construct_path("{videofile_path}")')
+
+        # Parse the filename using GuessIt.
+        guess = self.guess_info(videofile_path.as_posix())
         mapping = []
-        self.add_common_mapping(filename, guess, mapping)
+        self.add_common_mapping(videofile_path.as_posix(), guess, mapping)
 
-        if type == "movie":
-            dest_dir = self.processing_parameters.movies_dir
-            format = self.processing_parameters.movies_format
-            self.add_movies_mapping(guess, mapping)
-        elif type == "series":
-            dest_dir = self.processing_parameters.series_dir
-            format = self.processing_parameters.series_format
-            self.add_series_mapping(guess, mapping)
-        elif type == "dated":
-            dest_dir = self.processing_parameters.dated_dir
-            format = self.processing_parameters.dated_format
-            self.add_dated_mapping(guess, mapping)
-        elif type == "othertv":
-            dest_dir = self.processing_parameters.othertv_dir
-            format = self.processing_parameters.othertv_format
-            self.add_movies_mapping(guess, mapping)
-        else:
-            loginf("Could not determine video type for %s" % filename)
+        # Determine settings based solely on environment variables.
+        video_type = guess.get("vtype")
+        fmt, specific_mapping = self.get_video_type_map(video_type)
+        if not self.dest_dir or not fmt:
+            loginf(f"Could not determine video type for {videofile_path}")
             return None
 
-        if dest_dir == "":
-            dest_dir = os.path.dirname(self.nzb_properties.download_dir)
+        # Apply video type–specific mapping.
+        specific_mapping(guess, mapping)
 
-        # Find out a char most suitable as dupe_separator
-        self.guess_dupe_separator(format)
+        # Process the format string.
+        self.guess_dupe_separator(fmt)
+        if fmt.rstrip("}")[-5:].lower() != ".%ext":
+            fmt += ".%ext"
+        sorter = fmt.replace("\\", "/")
+        loginf(f"format: {sorter}")
 
-        # Add extension specifier if the format string doesn't end with it
-        if format.rstrip("}")[-5:].lower() != ".%ext":
-            format += ".%ext"
+        # Replace mapping specifiers.
+        path_str = Determine.path_subst(sorter, mapping)
+        logdet(f"path after subst: {path_str}")
 
-        sorter = format.replace("\\", "/")
-
-        loginf("format: %s" % sorter)
-
-        # Replace elements
-        path = Determine.path_subst(sorter, mapping)
-
-        logdet("path after subst: %s" % path)
-
-        # Cleanup file name
+        # Clean up the path until nothing changes.
         old_path = ""
-        while old_path != path:
-            old_path = path
+        while old_path != path_str:
+            old_path = path_str
             for key, name in Determine._REPLACE_AFTER.items():
-                path = path.replace(key, name)
+                path_str = path_str.replace(key, name)
 
-        # Uppercase all characters encased in {{}}
-        path = Determine.to_uppercase(path)
+        # Apply case modifications.
+        path_str = Determine.to_uppercase(path_str)
+        path_str = Determine.to_lowercase(path_str)
 
-        # Lowercase all characters encased in {}
-        path = Determine.to_lowercase(path)
+        # Use pathlib to split into stem and suffix and clean the folder names.
+        p = Path(path_str)
+        stripped = Determine.strip_folders(p.with_suffix("").as_posix())
+        path_str = stripped + p.suffix
 
-        # Strip any extra strippable characters around foldernames and filename
-        path, ext = os.path.splitext(path)
-        path = Determine.strip_folders(path)
-        path = path + ext
+        # Allow going up one level, for example if the destination directory is
+        # determined based on the category or the decade
+        if "%up" in path_str:
+            path_str = path_str.replace("%up", "..")
 
-        path = path.replace("%up", "..")
+        # Build the new path by joining destination directory with the relative path parts.
+        videofile_dest_relative = Path(path_str)
+        videofile_dest = self.dest_dir.joinpath(
+            *videofile_dest_relative.parts
+        ).resolve()
 
-        path = os.path.normpath(path)
-        dest_dir = os.path.normpath(dest_dir)
-
-        logdet("path after cleanup: %s" % path)
-
-        new_path = os.path.normpath(os.path.join(dest_dir, *path.split(os.sep)))
-
-        if filename.upper() == new_path.upper():
-            loginf(f'construct_path: "{filename}" == "{new_path}": return None')
+        # If the new path equals the original filename on a case-insensitive basis, do nothing.
+        if videofile_path.as_posix().upper() == videofile_dest.as_posix().upper():
+            loginf(
+                f'construct_path: "{videofile_path}" == "{videofile_dest}": return None'
+            )
             return None
 
-        loginf(f'construct_path: "{filename}" --> "{new_path}"')
-        return new_path
+        loginf(f'construct_path: "{videofile_path}" --> "{videofile_dest}"')
+        return videofile_dest
 
 
 class deprecation_support:

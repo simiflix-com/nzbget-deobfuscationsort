@@ -129,7 +129,7 @@ def set_defaults():
     os.environ["NZBPR__DNZB_EPISODENAME"] = ""
 
 
-def print_difference(expected, actual, prefix=""):
+def _difference_line(expected, actual, prefix=""):
     """Prints a caret (^) at positions where the expected and actual strings differ."""
     diff_line = ""
     if prefix != "":
@@ -141,7 +141,9 @@ def print_difference(expected, actual, prefix=""):
         if len(expected) > len(actual)
         else " " * (len(actual) - len(expected))
     )
-    print(diff_line)
+    if diff_line.strip() != "":
+        return diff_line + "\n"
+    return ""
 
 
 def get_test_dir_path_file(file_path):
@@ -331,8 +333,7 @@ def run_test(testobj):
 id: {testobj["id"]}
 expected:    {output_file_spec}
 destination: {dest}
-{print_difference(str(output_file_spec), str(dest), "destination: ")}
-{max_len * (success and "-" or "#")}
+{_difference_line(str(output_file_spec), str(dest), "destination: ")}{max_len * (success and "-" or "#")}
 """
         )
 

@@ -26,6 +26,7 @@ class ProcessingParameters:
     """
 
     def __init__(self):
+        self.video_type_map = None
         self.movies_format = os.environ["NZBPO_MOVIESFORMAT"]
         self.series_format = os.environ["NZBPO_SERIESFORMAT"]
         self.dated_format = os.environ["NZBPO_DATEDFORMAT"]

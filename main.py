@@ -51,8 +51,7 @@ if (
     logwar(f'Download of "{os.environ["NZBPP_NZBNAME"]}" has failed, exiting')
     sys.exit(POSTPROCESS_NONE)
 
-apply = Apply()
-apply.apply()
+apply = Apply().run()
 
 # Returing status to NZBGet
 if apply.errors:
