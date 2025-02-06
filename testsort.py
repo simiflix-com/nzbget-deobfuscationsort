@@ -229,7 +229,9 @@ def execute_deobfuscation_sort(test_file):
     out, err = proc.communicate()
     ret = proc.returncode
 
-    logging.info(f"STDOUT:\n{out.decode()}\nSTDERR:\n{err.decode()}")
+    stdout = out.decode()
+    stderr = err.decode()
+    logging.info(f"STDOUT:\n{stdout}\nSTDERR:\n{stderr}")
 
     # Initialize destination variable
     dest = ""
@@ -237,7 +239,7 @@ def execute_deobfuscation_sort(test_file):
     final_dir = None
     try:
         if ret == POSTPROCESS_SUCCESS:
-            match = re.search(r"^\[NZB\] FINALDIR=(.+)", out.decode(), re.MULTILINE)
+            match = re.search(r"^\[NZB\] FINALDIR=(.+)", stdout, re.MULTILINE)
             if match:
                 final_dir = Path(match.group(1))
                 logging.debug(f"NZB FINALDIR: {final_dir}")
@@ -248,11 +250,14 @@ def execute_deobfuscation_sort(test_file):
 
         elif ret == POSTPROCESS_ERROR:
             raise Exception(
-                f"DeobfuscationSort returned error\n\n{out.decode()}\n\n{err.decode()}"
+                f"DeobfuscationSort returned POSTPROCESS_ERROR\n\n{stdout}\n\n{stderr}"
             )
 
         else:
-            raise Exception(f"Unexpected return code: {ret}")
+            logging.error(
+                f"DeobfuscationSort returned unexpected {ret}:\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+            )
+            raise Exception(f"DeobfuscationSort returned unexpected {ret}")
 
         # Ensure the destination path is absolute
         assert dest_file is not None

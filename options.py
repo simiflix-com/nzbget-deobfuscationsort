@@ -2,6 +2,7 @@ import os
 import sys
 import re
 from nzbget_utils import POSTPROCESS_ERROR, logerr, loginf, logwar
+from pathlib import Path
 
 
 class Options:
@@ -80,29 +81,35 @@ class Options:
                 sys.exit(POSTPROCESS_ERROR)
 
     def _initialize_options(self):
+        # NZBP properties
+        # Class name: `NzbProperties`
         self.nzb_name = os.environ["NZBPP_NZBNAME"]
-        self.download_dir = os.environ["NZBPP_DIRECTORY"]
+        self.download_dir = Path(os.environ["NZBPP_DIRECTORY"])
+        self.category = os.environ.get("NZBPP_CATEGORY", "")
+        self.dnzb_proper_name = os.environ.get("NZBPR__DNZB_PROPERNAME", "")
+        self.dnzb_episode_name = os.environ.get("NZBPR__DNZB_EPISODENAME", "")
+        self.dnzb_movie_year = os.environ.get("NZBPR__DNZB_MOVIEYEAR", "")
+        self.dnzb_more_info = os.environ.get("NZBPR__DNZB_MOREINFO", "")
+
+        # Post-processing parameters
+        # Class name: `ProcessingParameters`
         self.movies_format = os.environ["NZBPO_MOVIESFORMAT"]
         self.series_format = os.environ["NZBPO_SERIESFORMAT"]
         self.dated_format = os.environ["NZBPO_DATEDFORMAT"]
         self.othertv_format = os.environ["NZBPO_OTHERTVFORMAT"]
         self.multiple_episodes = os.environ["NZBPO_MULTIPLEEPISODES"]
         self.episode_separator = os.environ["NZBPO_EPISODESEPARATOR"]
-        self.movies_dir = os.environ["NZBPO_MOVIESDIR"]
-        self.series_dir = os.environ["NZBPO_SERIESDIR"]
-        self.dated_dir = os.environ["NZBPO_DATEDDIR"]
-        self.othertv_dir = os.environ["NZBPO_OTHERTVDIR"]
+        self.movies_dir = Path(os.environ["NZBPO_MOVIESDIR"])
+        self.series_dir = Path(os.environ["NZBPO_SERIESDIR"])
+        self.dated_dir = Path(os.environ["NZBPO_DATEDDIR"])
+        self.othertv_dir = Path(os.environ["NZBPO_OTHERTVDIR"])
+
         self.video_extensions = (
             os.environ["NZBPO_VIDEOEXTENSIONS"].replace(" ", "").lower().split(",")
         )
         self.satellite_extensions = (
             os.environ["NZBPO_SATELLITEEXTENSIONS"].replace(" ", "").lower().split(",")
         )
-        self.min_size = int(os.environ["NZBPO_MINSIZE"]) << 20
-        self.overwrite = os.environ["NZBPO_OVERWRITE"] == "yes"
-        self.cleanup = os.environ["NZBPO_CLEANUP"] == "yes"
-        self.preview = os.environ["NZBPO_PREVIEW"] == "yes"
-        self.verbose = os.environ["NZBPO_VERBOSE"] == "yes"
         self.satellites = len(self.satellite_extensions) > 0
         self.lower_words = os.environ["NZBPO_LOWERWORDS"].replace(" ", "").split(",")
         self.upper_words = os.environ["NZBPO_UPPERWORDS"].replace(" ", "").split(",")
@@ -114,45 +121,18 @@ class Options:
         )
         self.series_year = os.environ.get("NZBPO_SERIESYEAR", "yes") == "yes"
         self.tv_categories = os.environ["NZBPO_TVCATEGORIES"].lower().split(",")
-        self.category = os.environ.get("NZBPP_CATEGORY", "")
-        self.force_tv = self.category.lower() in self.tv_categories
         self.dnzb_headers = os.environ.get("NZBPO_DNZBHEADERS", "yes") == "yes"
-        self.dnzb_proper_name = os.environ.get("NZBPR__DNZB_PROPERNAME", "")
-        self.dnzb_episode_name = os.environ.get("NZBPR__DNZB_EPISODENAME", "")
-        self.dnzb_movie_year = os.environ.get("NZBPR__DNZB_MOVIEYEAR", "")
-        self.dnzb_more_info = os.environ.get("NZBPR__DNZB_MOREINFO", "")
         self.prefer_nzb_name = os.environ.get("NZBPO_PREFERNZBNAME", "") == "yes"
         self.deep_scan = self.dnzb_headers
         self.deep_scan_ratio = 0.60
 
-        # FIXME: The following two variables are modified at runtime
-        # Separator character used between file name and opening brace
-        # for duplicate files such as "My Movie (2).mkv"
-        self.dupe_separator = " "
-
-        self.use_nzb_name = False
-
-        if len(self.deobfuscate_words) and len(self.deobfuscate_words[0]):
-            # if verbose:
-            #     print('De-obfuscation words: "{}"'.format(" | ".join(deobfuscate_words)))
-            self.deobfuscate_re = re.compile(
-                r"(.+?-[.0-9a-z]+)(?:\W+(?:{})[a-z0-9]*\W*)*$".format(
-                    "|".join([re.escape(word) for word in self.deobfuscate_words])
-                ),
-                re.IGNORECASE,
-            )
-        else:
-            self.deobfuscate_re = re.compile(
-                r"""
-                ^(.+? # Minimal length match for anything other than "-"
-                [-][.0-9a-z]+) # "-" followed by alphanumeric and dot indicates name of release group
-                .*$ # Anything that is left is considered deobfuscation and will be stripped
-            """,
-                flags=re.VERBOSE | re.IGNORECASE,
-            )
+        # Script options
+        # Class name: `Options`
+        self.min_size = int(os.environ["NZBPO_MINSIZE"]) << 20
+        self.overwrite = os.environ["NZBPO_OVERWRITE"] == "yes"
+        self.cleanup = os.environ["NZBPO_CLEANUP"] == "yes"
+        self.preview = os.environ["NZBPO_PREVIEW"] == "yes"
+        self.verbose = os.environ["NZBPO_VERBOSE"] == "yes"
 
         if self.preview:
             logwar("*** PREVIEW MODE ON - NO CHANGES TO FILE SYSTEM ***")
-
-        if self.verbose and self.force_tv:
-            loginf("Forcing TV sorting (category: %s)" % self.category)

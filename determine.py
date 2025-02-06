@@ -26,11 +26,46 @@ class Determine:
     _RE_UPPERCASE = re.compile(r"{{([^{]*)}}")
     _RE_LOWERCASE = re.compile(r"{([^{]*)}")
 
-    def __init__(self, options: Options):
+    def __init__(self, video_files: list[Path], options: Options):
+        self.video_files = video_files
         self.options = options
+        # Determine whether we can use the NZB name for the destination path
+        self.use_nzb_name = self.options.prefer_nzb_name and len(video_files) == 1
+        self.force_tv = self.options.category.lower() in self.options.tv_categories
+        # Separator character used between file name and opening brace
+        # for duplicate files such as "My Movie (2).mkv"
+        # Class name: `ScriptState`
+        self.dupe_separator = " "
+
+        self.deobfuscate_re = None
+        # Construct deobfuscation regex from words if provided
+        if len(self.options.deobfuscate_words) and len(
+            self.options.deobfuscate_words[0]
+        ):
+            self.deobfuscate_re = re.compile(
+                r"(.+?-[.0-9a-z]+)(?:\W+(?:{})[a-z0-9]*\W*)*$".format(
+                    "|".join(
+                        [re.escape(word) for word in self.options.deobfuscate_words]
+                    )
+                ),
+                re.IGNORECASE,
+            )
+        else:
+            self.deobfuscate_re = re.compile(
+                r"""
+                ^(.+? # Minimal length match for anything other than "-"
+                [-][.0-9a-z]+) # "-" followed by alphanumeric and dot indicates name of release group
+                .*$ # Anything that is left is considered deobfuscation and will be stripped
+            """,
+                flags=re.VERBOSE | re.IGNORECASE,
+            )
+
+        loginf(
+            f"Determine: use_nzb_name={self.use_nzb_name} force_tv={self.force_tv} ({self.options.category} {self.force_tv and 'in' or 'not in'} {self.options.tv_categories})"
+        )
 
     def path_subst(path, mapping):
-        """Replace the sort sting elements by real values.
+        """Replace the sort string elements by real values.
         Non-elements are copied literally.
         path = the sort string
         mapping = array of tuples that maps all elements to their values
@@ -89,10 +124,8 @@ class Determine:
         dirname = dirname_clean
 
         # Apply deobfuscation regex if provided
-        if self.options.deobfuscate_re:
-            dirname_deobfuscated = re.sub(
-                self.options.deobfuscate_re, r"\1", dirname_clean
-            )
+        if self.deobfuscate_re:
+            dirname_deobfuscated = re.sub(self.deobfuscate_re, r"\1", dirname_clean)
             dirname = dirname_deobfuscated
             logdet(
                 f'De-obfuscated NZB dirname: "{dirname_clean}" --> "{dirname_deobfuscated}"'
@@ -852,7 +885,7 @@ class Determine:
         Returns:
             dict: The guess dictionary with extracted information.
         """
-        if self.options.use_nzb_name:
+        if self.use_nzb_name:
             guessfilename = (
                 os.path.basename(self.options.download_dir)
                 + os.path.splitext(filename)[1]
@@ -929,7 +962,7 @@ class Determine:
             date = guess.get("date")
             if date:
                 guess["vtype"] = "dated"
-            elif self.options.force_tv:
+            elif self.force_tv:
                 guess["vtype"] = "othertv"
             else:
                 guess["vtype"] = "movie"
@@ -947,17 +980,17 @@ class Determine:
     def guess_dupe_separator(self, format):
         """Find out a char most suitable as dupe_separator"""
 
-        self.options.dupe_separator = " "
+        self.dupe_separator = " "
         format_fname = os.path.basename(format)
 
         for x in ("%.t", "%s.n", "%s.N"):
             if format_fname.find(x) > -1:
-                self.options.dupe_separator = "."
+                self.dupe_separator = "."
                 return
 
         for x in ("%_t", "%s_n", "%s_N"):
             if format_fname.find(x) > -1:
-                self.options.dupe_separator = "_"
+                self.dupe_separator = "_"
                 return
 
     def construct_path(self, filename):

@@ -43,118 +43,134 @@ class Apply:
         suffix = dst_path.suffix
         suffix_num = 2
         while True:
-            unique_path = parent / f"{stem}{self.options.dupe_separator}({suffix_num}){suffix}"
+            unique_path = (
+                parent / f"{stem}{self.determine.dupe_separator}({suffix_num}){suffix}"
+            )
             if not unique_path.exists() and unique_path not in self.moved_dst_files:
                 break
             suffix_num += 1
         return unique_path
 
-    def optimized_move(self, src_path: Path, dst_path: Path):
+    def _move_file_impl(self, src_file: Path, dst_file: Path):
         try:
             if not self.options.preview:
                 # Create the path to the destination file
-                dst_path.parent.mkdir(parents=True, exist_ok=True)
-                src_path.rename(dst_path)
+                dst_file.parent.mkdir(parents=True, exist_ok=True)
+                src_file.rename(dst_file)
             logdet(
-                f'{Apply.PREVIEW_PREFIX}optimized_move:  "{src_path}".rename("{dst_path}") OK'
+                f'{Apply.PREVIEW_PREFIX}_move_file_impl:  "{src_file}".rename("{dst_file}") OK'
             )
         except OSError as ex:
-            logdet(f"optimized_move: os.rename failed ({ex})")
+            logdet(f"_move_file_impl: rename failed;use shutil.copyfile ({ex})")
             if not self.options.preview:
-                shutil.copyfile(src_path, dst_path)
+                shutil.copyfile(src_file, dst_file)
             logdet(
-                f'{Apply.PREVIEW_PREFIX}optimized_move: shutil.copyfile("{src_path}", "{dst_path}") OK'
+                f'{Apply.PREVIEW_PREFIX}_move_file_impl: shutil.copyfile("{src_file}", "{dst_file}") OK'
             )
             if not self.options.preview:
-                src_path.unlink()
-            logdet(f'{Apply.PREVIEW_PREFIX}optimized_move: "{src_path}".unlink() OK')
+                src_file.unlink()
+            logdet(f'{Apply.PREVIEW_PREFIX}_move_file_impl: "{src_file}".unlink() OK')
 
-    def rename(self, src_path, dst_path):
+    def move_file(self, src_file, dest_file):
         """Moves the file to its sorted location.
         It creates directories to `dst_path` and moves the file from `src_path` there.
         """
         # Ensure the arguments are `Path` objects
-        if not isinstance(src_path, Path):
-            src_path = Path(src_path)
-        if not isinstance(dst_path, Path):
-            dst_path = Path(dst_path)
+        if not isinstance(src_file, Path):
+            src_file = Path(src_file)
+        if not isinstance(dest_file, Path):
+            dest_file = Path(dest_file)
 
-        if dst_path.exists() or dst_path in self.moved_dst_files:
-            if self.options.overwrite and dst_path not in self.moved_dst_files:
+        assert src_file.is_file()
+
+        if dest_file.exists() or dest_file in self.moved_dst_files:
+            assert dest_file.is_file()
+            if self.options.overwrite and dest_file not in self.moved_dst_files:
                 # Overwrite existing file
                 loginf(
-                    f'rename: overwrite={self.options.overwrite} and "{dst_path}" not in {self.moved_dst_files}'
+                    f'move_file: overwrite={self.options.overwrite} and "{dest_file}" not in {self.moved_dst_files}'
                 )
                 if not self.options.preview:
-                    dst_path.unlink()
-                loginf(f'{Apply.PREVIEW_PREFIX}rename: "{dst_path}".unlink() OK')
-                self.optimized_move(src_path, dst_path)
+                    dest_file.unlink()
+                loginf(f'{Apply.PREVIEW_PREFIX}move_file: "{dest_file}".unlink() OK')
+                self._move_file_impl(src_file, dest_file)
             else:
                 # Cannot overwrite existing file because either overwrite is disabled or
                 # the destination file was created by the script.
                 # Rename to a unique filename instead
-                dst_path = self.unique_name(dst_path)
+                dest_file = self.unique_name(dest_file)
                 loginf(
-                    f'rename: overwrite={self.options.overwrite}: resursively call rename("{src_path}", "{dst_path}")'
+                    f'move_file: overwrite={self.options.overwrite}: resursively call move_file("{src_file}", "{dest_file}")'
                 )
-                self.rename(src_path, dst_path)
+                self.move_file(src_file, dest_file)
         else:
             # Destination file does not exist and is not in the list of moved files
-            self.optimized_move(src_path, dst_path)
-            loginf(f'rename: optimized_move("{src_path}", "{dst_path})" OK')
-        self.moved_src_files.append(src_path)
-        self.moved_dst_files.append(dst_path)
-        logdet(f"rename: file at dst_path is {Apply._file_size_human(dst_path)}")
-        logdet(f"rename: returning {dst_path}")
-        return dst_path
+            self._move_file_impl(src_file, dest_file)
+            loginf(f'move_file: _move_file_impl("{src_file}", "{dest_file})" OK')
+        self.moved_src_files.append(src_file)
+        self.moved_dst_files.append(dest_file)
+        logdet(f"move_file: file at dst_path is {Apply._file_size_human(dest_file)}")
+        logdet(f"move_file: returning {dest_file}")
+        return dest_file
 
-    def move_satellites(self, videofile, dest):
-        """Moves satellite files such as subtitles that are associated with base
-        and stored in root to the correct dest.
+    def move_satellites(self, src_file: Path, dest_file: Path):
+        """Moves satellite files such as subtitles that are associated with the base video
+        and stored in the video's directory (or subdirectories) to the correct destination.
         """
-        loginf(f'move_satellites("{videofile}", "{dest}")')
+        loginf(f'move_satellites("{src_file}", "{dest_file}")')
 
-        root = os.path.dirname(videofile)
-        destbasenm = os.path.splitext(dest)[0]
-        base = os.path.basename(os.path.splitext(videofile)[0])
-        for dirpath, dirnames, filenames in os.walk(root):
-            for filename in filenames:
-                fbase, fext = os.path.splitext(filename)
-                fextlo = fext.lower()
-                fpath = os.path.join(dirpath, filename)
+        # Define the source and destination directories.
+        src_dir = src_file.parent
+        dest_dir = dest_file.parent
 
-                if fextlo in self.options._SATELLITE_EXTENSIONS:
-                    # Handle subtitles and nfo files
-                    subpart = ""
-                    # We support GuessIt supported subtitle extensions
-                    if fextlo[1:] in self.options._SATELLITE_EXTENSIONS:
-                        guess = guessit.guessit(filename)
-                        if guess and "subtitle_language" in guess:
-                            fbase = fbase[: fbase.rfind(".")]
-                            # Use alpha2 subtitle language from GuessIt (en, es, de, etc.)
-                            subpart = "." + guess["subtitle_language"].alpha2
+        # Assert that both directories exist to ensure we're working with valid directories.
+        assert src_dir.is_dir()
+        assert dest_dir.is_dir()
 
-                        if subpart != "":
-                            loginf(
-                                "Satellite: %s is a subtitle [%s]"
-                                % (filename, guess["subtitle_language"])
-                            )
-                        else:
-                            # English (or undetermined)
-                            loginf("Satellite: %s is a subtitle" % filename)
+        # The base for satellite files: the video filename without its extension.
+        base = src_file.with_suffix("").name
 
-                    elif (fbase.lower() != base.lower()) and fextlo == ".nfo":
-                        # Aggressive match attempt
-                        if self.options.deep_scan:
-                            guess = self.deep_scan_nfo(fpath)
-                            if guess is not None:
-                                # Guess details are not important, just that there was a match
-                                fbase = base
-                    if fbase.lower() == base.lower():
-                        old = fpath
-                        new = destbasenm + subpart + fext
-                        loginf("Satellite: %s" % os.path.basename(new))
-                        self.rename(old, new)
+        # Iterate recursively over all files under the source video's directory.
+        for sat_file in src_dir.rglob("*"):
+            if not sat_file.is_file():
+                continue
+
+            filename = sat_file.name
+            file_stem = sat_file.stem
+            fext = sat_file.suffix
+            fextlo = fext.lower()
+
+            if fextlo in self.options._SATELLITE_EXTENSIONS:
+                subpart = ""
+                if fextlo[1:] in self.options._SATELLITE_EXTENSIONS:
+                    guess = guessit.guessit(filename)
+                    if guess and "subtitle_language" in guess:
+                        # Remove the last dot and subsequent characters from the file stem.
+                        idx = file_stem.rfind(".")
+                        if idx != -1:
+                            file_stem = file_stem[:idx]
+                        # Use alpha2 subtitle language (e.g. en, es) from GuessIt.
+                        subpart = "." + guess["subtitle_language"].alpha2
+
+                    if subpart:
+                        loginf(
+                            "Satellite: %s is a subtitle [%s]"
+                            % (filename, guess["subtitle_language"])
+                        )
+                    else:
+                        loginf("Satellite: %s is a subtitle" % filename)
+
+                elif (file_stem.lower() != base.lower()) and fextlo == ".nfo":
+                    if self.options.deep_scan:
+                        guess = self.deep_scan_nfo(str(sat_file))
+                        if guess is not None:
+                            file_stem = base
+
+                if file_stem.lower() == base.lower():
+                    # Build the new satellite file name using the destination video's stem.
+                    new_sat = dest_dir / f"{dest_file.stem}{subpart}{fext}"
+                    loginf("Satellite: %s" % new_sat.name)
+                    self.move_file(sat_file, new_sat)
 
     def deep_scan_nfo(self, filename, ratio=None):
         if ratio is None:
@@ -192,21 +208,20 @@ class Apply:
         return best_guess
 
     def cleanup_download_dir(self):
-        """Remove the download directory if it (or any subfodler) does not contain "important" files
-        (important = size >= min_size)
+        """Remove the download directory if it (or any subfolder) does not contain
+        "important" files (important = size >= min_size).
         """
-        loginf(f'cleanup_download_dir("{self.options.download_dir}")')
+        download_dir = Path(self.options.download_dir)
+        loginf(f'cleanup_download_dir("{download_dir}")')
 
         # Check if there are any big files remaining
         keep_download_dir = False
-        for root, dirs, files in os.walk(self.options.download_dir):
-            for filename in files:
-                path = Path(root) / filename
+        for path in download_dir.rglob("*"):
+            if path.is_file():
                 if path in self.moved_dst_files:
                     keep_download_dir = True
                     continue
-                # Check minimum file size
-                if os.path.getsize(path) >= self.options.min_size and (
+                if path.stat().st_size >= self.options.min_size and (
                     not self.options.preview or (path not in self.moved_src_files)
                 ):
                     logwar(
@@ -214,20 +229,21 @@ class Apply:
                     )
                     return
 
-        # Now delete all files with nice logging
-        for root, dirs, files in os.walk(self.options.download_dir):
-            for filename in files:
-                path = Path(root) / filename
+        # Now delete all files with nice logging.
+        for path in list(download_dir.rglob("*")):
+            if path.is_file():
                 if path in self.moved_dst_files:
                     continue
-                if not self.options.preview or path not in self.moved_src_files:
+                if not self.options.preview or (path not in self.moved_src_files):
                     if not self.options.preview:
                         path.unlink()
-                    loginf("Deleted: %s" % path)
+                    loginf(f'Deleted: "{path}"')
+
+        # Delete the download directory if no moved destination files exist.
         if not keep_download_dir:
             if not self.options.preview:
-                shutil.rmtree(self.options.download_dir)
-            loginf("Deleted: %s" % self.options.download_dir)
+                shutil.rmtree(download_dir)
+            loginf(f'Deleted: "{download_dir}"')
 
     @staticmethod
     def _file_size_human(file_path):
@@ -277,27 +293,21 @@ class Apply:
                     logerr("Exception: %s" % e)
                     traceback.print_exc()
 
-        # Determine whether we can use the NZB name for the destination path
-        # Note: The value of self.options.use_nzb_name is used in the `Determine` class
-        self.options.use_nzb_name = (
-            self.options.prefer_nzb_name and len(video_files) == 1
-        )
-
-        determine = Determine(self.options)
+        determine = Determine(video_files, self.options)
 
         for video_file_path in video_files:
             try:
                 dest = determine.construct_path(str(video_file_path))
 
                 if dest:
-                    dest_path = Path(dest)
+                    dest_file = Path(dest)
                     # Move video file
-                    self.rename(video_file_path, dest_path)
+                    self.move_file(video_file_path, dest_file)
                     self.files_moved = True
 
                     if self.files_moved and self.options.satellites:
                         # Move satellite files
-                        self.move_satellites(video_file_path, dest_path)
+                        self.move_satellites(video_file_path, dest_file)
 
             except Exception as e:
                 self.errors = True
