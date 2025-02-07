@@ -12,7 +12,11 @@ import guessit
 
 # * From SABnzbd+ (with modifications) *
 class Determine:
-    _STRIP_AFTER = ("_", ".", "-")
+    _BOUNDARY_STRIP_CHARS = ("_", ".", "-")
+
+    _RELEVANT_PATH_PART_RE = re.compile(
+        r"[-a-z0-9]*[ ._]+([-a-z0-9]*[ ._][-a-z0-9]*)*", re.IGNORECASE
+    )
 
     _REPLACE_AFTER = {
         "()": "",
@@ -80,6 +84,10 @@ class Determine:
         path = the sort string
         mapping = array of tuples that maps all elements to their values
         """
+        # Determine if the path is absolute so we can validate if we
+        # return a mapped path with the same property
+        is_absolute = Path(path).is_absolute()
+
         newpath = []
         plen = len(path)
         n = 0
@@ -110,9 +118,11 @@ class Determine:
                         break
             newpath.append(result)
             n += 1
-        return "".join(
+        mapped_path = "".join(
             map(lambda x: ".".join(x) if isinstance(x, list) else str(x), newpath)
         )
+        assert Path(mapped_path).is_absolute() == is_absolute
+        return mapped_path
 
     def get_deobfuscated_dirname(self, dirname, name=None):
         """
@@ -391,52 +401,33 @@ class Determine:
         return path
 
     @staticmethod
-    def strip_folders(path):
+    def strip_parts_of_path_str(path_str: str):
         """
-        Return 'path' without leading and trailing strip-characters in each element.
+        Remove leading and trailing punctuation characters from every part of the path.
         """
-        f = path.strip("/").split("/")
+        path = Path(path_str)
+        is_absolute = path.is_absolute()
 
-        # For path beginning with a slash, insert empty element to prevent loss
-        if len(path.strip()) > 0 and path.strip()[0] in "/\\":
-            f.insert(0, "")
+        # Operate on all path parts and the stem of the file name
+        path_stem = path.with_suffix("")
 
-        def strip_all(x):
+        def strip_part(part: str):
             """
-            Strip all leading/trailing underscores and hyphens
-            also dots for Windows.
+            Strip all leading/trailing word separators from a part of the path.
             """
-            old_name = ""
-            while old_name != x:
-                old_name = x
-                for strip_char in Determine._STRIP_AFTER:
-                    x = x.strip().strip(strip_char)
-            return x
+            part_prev = ""
+            while part != part_prev:
+                part_prev = part
+                for strip_char in Determine._BOUNDARY_STRIP_CHARS:
+                    part = part.strip().strip(strip_char)
+            return part
 
-        return os.path.normpath("/".join([strip_all(x) for x in f]))
+        clean_parts = [strip_part(x) for x in path_stem.parts]
+        clean_path = Path(Path().joinpath(*clean_parts).as_posix() + path.suffix)
 
-    @staticmethod
-    def os_path_split(path):
-        """
-        Splits a path into its components.
-
-        Args:
-            path (str): The path to split.
-
-        Returns:
-            list: A list of path components.
-        """
-        parts = []
-        while True:
-            newpath, tail = os.path.split(path)
-            if newpath == path:
-                if path:
-                    parts.append(path)
-                break
-            parts.append(tail)
-            path = newpath
-        parts.reverse()
-        return parts
+        assert clean_path.is_absolute() == is_absolute
+        assert clean_path.suffix == path.suffix
+        return clean_path.as_posix()
 
     @staticmethod
     def format_matches_dict(matches_dict):
@@ -469,12 +460,18 @@ class Determine:
 
         return "\n".join(formatted_lines)
 
-    def add_common_mapping(self, old_filename, guess, mapping):
+    def add_common_mapping(self, videofile_path: Path, guess, mapping):
+        """Add common mapping elements used by all video types.
+
+        Args:
+            videofile_path (Path): Path object representing the video file
+            guess (dict): GuessIt results dictionary
+            mapping (list): List to add the mapping tuples to
+        """
         # Original dir name, file name and extension
-        original_dirname = os.path.basename(self.nzb_properties.download_dir)
-        original_fname, original_fext = os.path.splitext(
-            os.path.split(os.path.basename(old_filename))[1]
-        )
+        original_dirname = self.nzb_properties.download_dir.name
+        original_fname = videofile_path.stem
+        original_fext = videofile_path.suffix
         original_category = os.environ.get("NZBPP_CATEGORY", "")
 
         # Directory name
@@ -742,54 +739,54 @@ class Determine:
         mapping.append(("%d", day))
         mapping.append(("%0d", day.rjust(2, "0")))
 
-    def strip_useless_parts(self, filename):
+    def strip_useless_parts(self, videofile_path: Path):
         """
-        Strips useless parts from the filename.
+        Strips useless parts from the videofile_path.
 
         Args:
-            filename (str): The filename to process.
+            videofile_path (Path): The videofile to process.
 
         Returns:
             str: The cleaned-up filename.
         """
-        start = os.path.dirname(self.nzb_properties.download_dir)
-        new_name = filename[len(start) + 1 :]
-        logdet(f"Stripped filename: {new_name}")
+        candidate_path = videofile_path.relative_to(
+            self.nzb_properties.download_dir.parent
+        )
+        logdet(f"Stripped filename: {candidate_path.as_posix()}")
 
-        parts = Determine.os_path_split(new_name)
-        logdet(f"Path parts: {parts}")
+        path_parts_list = [*candidate_path.parts]
+        logdet(f"Path parts: {path_parts_list}")
 
-        part_removed = 0
-        for x in range(0, len(parts) - 1):
-            fn = parts[x]
-            if fn.find(".") == -1 and fn.find("_") == -1 and fn.find(" ") == -1:
+        relevant_path = Path()
+        # Process directory name parts
+        for directory_part in path_parts_list[:-1]:
+            if re.search(Determine._RELEVANT_PATH_PART_RE, directory_part):
+                relevant_path = relevant_path / directory_part
+            else:
                 loginf(
-                    f"Detected obfuscated directory name {fn}, removing from guess path"
+                    f'Skipping obfuscated directory part {directory_part}". Relevant path so far: "{relevant_path.as_posix()}"'
                 )
-                parts[x] = None
-                part_removed += 1
 
-        fn = os.path.splitext(parts[len(parts) - 1])[0]
-        if fn.find(".") == -1 and fn.find("_") == -1 and fn.find(" ") == -1:
-            loginf(
-                f"Detected obfuscated filename {os.path.basename(filename)}, removing from guess path"
-            )
-            parts[len(parts) - 1] = "-" + os.path.splitext(filename)[1]
-            part_removed += 1
-
-        if part_removed < len(parts):
-            new_name = ""
-            for x in range(0, len(parts)):
-                if parts[x] is not None:
-                    new_name = os.path.join(new_name, parts[x])
+        # Process file name part
+        if re.search(Determine._RELEVANT_PATH_PART_RE, candidate_path.stem):
+            relevant_path = relevant_path / candidate_path.name
         else:
-            loginf("All file path parts are obfuscated, using obfuscated NZB name")
-            new_name = (
-                os.path.basename(self.nzb_properties.download_dir)
-                + os.path.splitext(filename)[1]
-            )
+            if relevant_path.parts:
+                # Skip the obfuscated filename and append the suffix to the parent directory of the relevant path
+                relevant_path = relevant_path.parent / (
+                    relevant_path.name + candidate_path.suffix
+                )
+                loginf(
+                    f'Ignoring obfuscated filename "{candidate_path.name}", appending suffix to parent directory: "{relevant_path.as_posix()}"'
+                )
+            else:
+                # As a last resort, use the obfuscated NZB name
+                relevant_path = Path(candidate_path.stem + candidate_path.suffix)
+                loginf(
+                    f'No relevant path parts found in "{candidate_path.stem}", using obfuscated NZB name "{relevant_path.as_posix()}"'
+                )
 
-        return new_name
+        return relevant_path
 
     def remove_year(self, title):
         """
@@ -890,28 +887,25 @@ class Determine:
         logdet(f"is_movie: {is_movie}")
         return is_movie
 
-    def guess_info(self, filename):
-        """
-        Parses the filename using guessit library.
+    def guess_info(self, videofile_path: Path):
+        """Guess information about the video using GuessIt.
 
         Args:
-            filename (str): The filename to parse.
+            videofile_path (Path): Path object representing the video file
 
         Returns:
-            dict: The guess dictionary with extracted information.
+            dict: GuessIt results dictionary with video information
         """
         if self.use_nzb_name:
-            guessfilename = (
-                os.path.basename(self.nzb_properties.download_dir)
-                + os.path.splitext(filename)[1]
-            )
+            guessfilename = self.nzb_properties.download_dir.name
             logdet(
-                f'Input for GuessIt: NZB name "{self.nzb_properties.download_dir}" with filename "filename" --> "{guessfilename}"'
+                f'Input for GuessIt: NZB name "{self.nzb_properties.download_dir.as_posix()}" with filename "filename" --> "{guessfilename}"'
             )
         else:
-            guessfilename = self.strip_useless_parts(filename)
+            # Get filename and apply basic cleanup
+            guessfilename = self.strip_useless_parts(videofile_path)
             logdet(
-                f'Input for GuessIt: Stripped useless parts from filename "{filename}" --> "{guessfilename}"'
+                f'Input for GuessIt: Stripped useless parts from filename "{videofile_path.as_posix()}" --> "{guessfilename}"'
             )
 
         # workaround for titles starting with numbers (which guessit has problems with) (part 1)
@@ -993,17 +987,17 @@ class Determine:
         return guess
 
     def guess_dupe_separator(self, format):
-        """Find out a char most suitable as dupe_separator"""
+        """Determine most suitable character for dupe_separator"""
 
         self.dupe_separator = " "
         format_fname = os.path.basename(format)
 
-        for x in ("%.t", "%s.n", "%s.N"):
+        for x in ("%.t", "%s.n", "%s.N", "%e.n", "%e.N"):
             if format_fname.find(x) > -1:
                 self.dupe_separator = "."
                 return
 
-        for x in ("%_t", "%s_n", "%s_N"):
+        for x in ("%_t", "%s_n", "%s_N", "%e_n", "%e_N"):
             if format_fname.find(x) > -1:
                 self.dupe_separator = "_"
                 return
@@ -1065,9 +1059,9 @@ class Determine:
         loginf(f'construct_path("{videofile_path}")')
 
         # Parse the filename using GuessIt.
-        guess = self.guess_info(videofile_path.as_posix())
+        guess = self.guess_info(videofile_path)
         mapping = []
-        self.add_common_mapping(videofile_path.as_posix(), guess, mapping)
+        self.add_common_mapping(videofile_path, guess, mapping)
 
         # Determine settings based solely on environment variables.
         video_type = guess.get("vtype")
@@ -1079,15 +1073,19 @@ class Determine:
         # Apply video type–specific mapping.
         specific_mapping(guess, mapping)
 
-        # Process the format string.
+        # Determine character to use for dupe separator
         self.guess_dupe_separator(fmt)
+
+        # Ensure that the format string ends with the extension.
         if fmt.rstrip("}")[-5:].lower() != ".%ext":
             fmt += ".%ext"
-        sorter = fmt.replace("\\", "/")
-        loginf(f"format: {sorter}")
+
+        # Canoniicalize slashes and backslashes
+        fmt = fmt.replace("\\", "/")
+        loginf(f"format: {fmt}")
 
         # Replace mapping specifiers.
-        path_str = Determine.path_subst(sorter, mapping)
+        path_str = Determine.path_subst(fmt, mapping)
         logdet(f"path after subst: {path_str}")
 
         # Clean up the path until nothing changes.
@@ -1102,9 +1100,7 @@ class Determine:
         path_str = Determine.to_lowercase(path_str)
 
         # Use pathlib to split into stem and suffix and clean the folder names.
-        p = Path(path_str)
-        stripped = Determine.strip_folders(p.with_suffix("").as_posix())
-        path_str = stripped + p.suffix
+        path_str = Determine.strip_parts_of_path_str(path_str)
 
         # Allow going up one level, for example if the destination directory is
         # determined based on the category or the decade
@@ -1125,6 +1121,12 @@ class Determine:
             return None
 
         loginf(f'construct_path: "{videofile_path}" --> "{videofile_dest}"')
+
+        # Validate the new path
+        assert videofile_dest.is_absolute()
+        # NOTE: The assertion of a is not valid for paths that go up one level
+        if "%up" not in fmt:
+            assert videofile_dest.is_relative_to(self.dest_dir)
         return videofile_dest
 
 
