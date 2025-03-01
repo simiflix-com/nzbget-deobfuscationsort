@@ -36,6 +36,16 @@ from nzbget_utils import (
 
 sys.stdout.reconfigure(encoding="utf-8")
 
+COMMIT_HASH = "8f8ddbe17be8eaa6831d276c40cfa8b0f8a71e04"
+
+
+def get_commit_hash():
+    return COMMIT_HASH
+
+
+loginf(f"Running commit {get_commit_hash()}")
+
+
 # Check if directory still exist (for post-process again)
 nzbp_directory = os.environ["NZBPP_DIRECTORY"]
 if not (nzbp_directory and Path(nzbp_directory).is_dir()):
