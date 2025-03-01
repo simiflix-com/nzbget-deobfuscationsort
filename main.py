@@ -36,7 +36,7 @@ from nzbget_utils import (
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-COMMIT_HASH = "1934acf4b9e8866f1f142f68c2646410c25eb672"
+COMMIT_HASH = "c2a734c322f67ffa9b798204c2f8f030f29e4940"
 
 
 def get_commit_hash():
