@@ -4,7 +4,7 @@
   "homepage": "https://github.com/simiflix/nzbget-deobfuscationsort",
   "kind": "POST-PROCESSING",
   "displayName": "Deobfuscation Sort",
-  "version": "0.0.8",
+  "version": "0.0.10",
   "nzbgetMinVersion": "23.0",
   "author": "Simi Flix",
   "license": "GNU",
@@ -86,26 +86,26 @@
     {
       "name": "VideoExtensions",
       "displayName": "VideoExtensions",
-      "value": ".mkv,.avi,.divx,.xvid,.mov,.wmv,.mp4,.mpg,.mpeg,.vob,.iso",
+      "value": "mkv, avi, divx, xvid, mov, wmv, mp4, mpg, mpeg, vob, iso",
       "description": [
         "File extensions for video files.",
         "",
         "Only files with these extensions are processed. Extensions must",
-        "be separated with commas.",
-        "Example=.mkv,.avi,.divx,.xvid,.mov,.wmv,.mp4,.mpg,.mpeg,.vob,.iso"
+        "be separated by commas.",
+        "Example=mkv, avi, divx, xvid, mov, wmv, mp4, mpg, mpeg, vob, iso"
       ],
       "select": []
     },
     {
       "name": "SatelliteExtensions",
       "displayName": "SatelliteExtensions",
-      "value": ".srt,.sub",
+      "value": "srt, sub, nfo",
       "description": [
         "File extensions for satellite files.",
         "",
         "Move satellite files such as subtitles to the destination along with",
         "the files they are related to. Extensions must be separated with commas.",
-        "Example=.srt,.nfo"
+        "Example=srt, sub, nfo"
       ],
       "select": []
     },

@@ -38,12 +38,23 @@ class ProcessingParameters:
         self.dated_dir = Path(os.environ["NZBPO_DATEDDIR"])
         self.othertv_dir = Path(os.environ["NZBPO_OTHERTVDIR"])
 
-        self.video_extensions = (
-            os.environ["NZBPO_VIDEOEXTENSIONS"].replace(" ", "").lower().split(",")
-        )
-        self.satellite_extensions = (
-            os.environ["NZBPO_SATELLITEEXTENSIONS"].replace(" ", "").lower().split(",")
-        )
+        # Read and clean video suffixes
+        self.video_extensions = [
+            ext.strip().lstrip(".")  # Remove spaces and leading dots
+            for ext in os.environ.get("NZBPO_VIDEOEXTENSIONS", "")
+            .lower()
+            .split(",")  # Split into list
+            if ext.strip()  # Ensure no empty entries
+        ]
+
+        self.satellite_extensions = [
+            ext.strip().lstrip(".")  # Remove spaces and leading dots
+            for ext in os.environ.get("NZBPO_SATELLITEEXTENSIONS", "")
+            .lower()
+            .split(",")  # Split into list
+            if ext.strip()  # Ensure no empty entries
+        ]
+
         self.lower_words = os.environ["NZBPO_LOWERWORDS"].replace(" ", "").split(",")
         self.upper_words = os.environ["NZBPO_UPPERWORDS"].replace(" ", "").split(",")
         self.deobfuscate_words = (
