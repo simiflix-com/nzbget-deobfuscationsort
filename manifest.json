@@ -4,7 +4,7 @@
   "homepage": "https://github.com/simiflix/nzbget-deobfuscationsort",
   "kind": "POST-PROCESSING",
   "displayName": "Deobfuscation Sort",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "nzbgetMinVersion": "23.0",
   "author": "Simi Flix",
   "license": "GNU",

@@ -1084,10 +1084,21 @@ class Determine:
             )
         self.dest_dir = self.processing_parameters.video_type_map[0]
 
-        # Fallback if the destination directory is not set
-        if not self.dest_dir:
-            self.dest_dir = self.nzb_properties.download_dir.parent
+        logdet(
+            f'NZBPO_MOVIESDIR="{os.environ["NZBPO_MOVIESDIR"]}", '
+            f'NZBPO_SERIESDIR="{os.environ["NZBPO_SERIESDIR"]}", '
+            f'NZBPO_DATEDDIR="{os.environ["NZBPO_DATEDDIR"]}", '
+            f'NZBPO_OTHERTVDIR="{os.environ["NZBPO_OTHERTVDIR"]}"'
+        )
+
+        if self.dest_dir and self.dest_dir.is_absolute():
             logdet(
+                f'Using destination directory: "{self.dest_dir}" [from video_type_map="{self.processing_parameters.video_type_map}"]'
+            )
+        else:
+            # Fallback if the destination directory is not set
+            self.dest_dir = self.nzb_properties.download_dir.parent
+            loginf(
                 f'Using fallback destination directory: "{self.dest_dir}" [parent of nzb_properties.download_dir="{self.nzb_properties.download_dir}"]'
             )
 
