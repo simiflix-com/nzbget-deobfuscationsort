@@ -42,7 +42,12 @@ COMMIT_HASH = "c2a734c322f67ffa9b798204c2f8f030f29e4940"
 
 def get_version():
     try:
-        with open("manifest.json", "r") as f:
+        # Get the directory where this script is located
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        manifest_path = os.path.join(script_dir, "manifest.json")
+
+        # Read the JSON file
+        with open(manifest_path, "r") as f:
             data = json.load(f)
             return data.get("version", "Unknown")
     except (FileNotFoundError, json.JSONDecodeError):
