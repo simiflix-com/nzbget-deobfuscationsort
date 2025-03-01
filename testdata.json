@@ -25,6 +25,7 @@
     "id": "deobfuscate-1",
     "INPUTFILE": "71.2014.720p.BluRay.DTS-HD.MA.x264-DON-Scrambled/abc.mkv",
     "OUTPUTFILE": "/movies/71.2014.720p.BluRay.DTS-HD.MA.x264-DON-Scrambled/71.2014.720p.BluRay.DTS-HD.MA.x264-DON.mkv",
+    "NZBPO_MOVIESDIR": "/movies",
     "NZBPO_MOVIESFORMAT": "%dn/%ddn.%ext"
   },
   {
@@ -37,6 +38,7 @@
     "id": "deobfuscate-3",
     "INPUTFILE":  "/_incoming/BBC.Human.Planet.E08.Cities.Surviving.The.Urban.Jungle.2011.1080p.BluRay.DTS.x264-DON-AsRequested/aa7874885c20f9ee2513edc0647e152d.mkv",
     "OUTPUTFILE": "/series/BBC.Human.Planet.E08.Cities.Surviving.The.Urban.Jungle.2011.1080p.BluRay.DTS.x264-DON.mkv",
+    "NZBPO_SERIESDIR": "/series/",
     "NZBPO_SERIESFORMAT": "%ddn.%ext",
     "NZBPO_PREFERNZBNAME": "yes"
   },
@@ -64,6 +66,13 @@
     "INPUTFILE": "/_incoming/BBC.Human.Planet.2011.E08.Cities.Surviving.The.Urban.Jungle.1080p.BluRay.DTS.x264-DON-AsRequested/aa7874885c20f9ee2513edc0647e152d.mkv",
     "OUTPUTFILE": "/series/BBC Human Planet 2011/Season 01/S01E08 - Cities Surviving The Urban Jungle [Blu-ray 1080p DON].MKV",
     "NZBPO_SERIESFORMAT": "%sN/Season %0s/S%0sE%0e - %eN [%qf %qss %qrg].%EXT"
+  },
+  {
+    "id": "up-ext-3",
+    "INPUTFILE": "71.2014.720p.Web-Dl.x264.Aac-IFT.MKV",
+    "OUTPUTFILE": "/movies/71 (2014).MKV",
+    "NZBPO_MOVIESDIR": "/movies",
+    "NZBPO_MOVIESFORMAT": "%t (%y).%ext"
   },
   {
     "id": "lead-num-2",

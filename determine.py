@@ -1087,6 +1087,9 @@ class Determine:
         # Fallback if the destination directory is not set
         if not self.dest_dir:
             self.dest_dir = self.nzb_properties.download_dir.parent
+            logdet(
+                f'Using fallback destination directory: "{self.dest_dir}" [parent of nzb_properties.download_dir="{self.nzb_properties.download_dir}"]'
+            )
 
         return self.processing_parameters.video_type_map[1:]
 
