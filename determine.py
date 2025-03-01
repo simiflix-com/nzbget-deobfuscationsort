@@ -928,9 +928,17 @@ class Determine:
             dict: GuessIt results dictionary with video information
         """
         if self.use_nzb_name:
-            guessfilename = self.nzb_properties.download_dir.name
+            guessfilename = self.get_deobfuscated_dirname(
+                self.nzb_properties.download_dir.name
+            )
+            # If the videofile_path has a videofile suffix, append it
+            if (
+                videofile_path.suffix.lower().lstrip(".")
+                in self.processing_parameters.video_extensions
+            ):
+                guessfilename = guessfilename + videofile_path.suffix
             logdet(
-                f'Input for GuessIt: NZB name "{self.nzb_properties.download_dir.as_posix()}" with filename "filename" --> "{guessfilename}"'
+                f'Input for GuessIt: NZB name "{self.nzb_properties.download_dir.as_posix()}" from download_dir "{self.nzb_properties.download_dir.name}" --> "{guessfilename}"'
             )
         else:
             # Get filename and apply basic cleanup
@@ -1082,21 +1090,35 @@ class Determine:
 
         return self.processing_parameters.video_type_map[1:]
 
+    def clean_videofile_path(self, videofile_path: Path) -> Path:
+        """
+        Cleans up the videofile_path by removing unnecessary parts.
+
+        Args:
+            videofile_path (Path): The videofile to process.
+
+        Returns: Path: The cleaned-up videofile path.
+        """
+
+        nzb_dir = videofile_path.parent.name
+        clean_nzb_dir = self.get_deobfuscated_dirname(nzb_dir)
+        if clean_nzb_dir == nzb_dir:
+            return videofile_path
+
+        clean_videofile_path = videofile_path.parent.parent.joinpath(
+            clean_nzb_dir
+        ).joinpath(videofile_path.name)
+        loginf(f'clean_videofile_path: clean_videofile_path: "{clean_videofile_path}"')
+        return clean_videofile_path
+
     def construct_path(self, videofile_path: Path) -> Path:
         """Parses the filename and generates a new name for renaming.
 
         Expects `filename` to be a Path object and works exclusively with pathlib.
         """
         loginf(f'construct_path("{videofile_path}")')
-        clean_videofile_path = videofile_path
+        clean_videofile_path = self.clean_videofile_path(videofile_path)
 
-        nzb_dir = videofile_path.parent.name
-        clean_nzb_dir = self.get_deobfuscated_dirname(nzb_dir)
-        if clean_nzb_dir != nzb_dir:
-            clean_videofile_path = videofile_path.parent.parent.joinpath(
-                clean_nzb_dir
-            ).joinpath(videofile_path.name)
-            loginf(f'construct_path: clean_videofile_path: "{clean_videofile_path}"')
         # Parse the filename using GuessIt.
         guess = self.guess_info(clean_videofile_path)
         mapping = []
@@ -1150,9 +1172,14 @@ class Determine:
 
         # Build the new path by joining destination directory with the relative path parts.
         videofile_dest_relative = Path(path_str)
+
         videofile_dest = self.dest_dir.joinpath(
             *videofile_dest_relative.parts
         ).resolve()
+
+        logdet(
+            f'construct_path: combine videofile_dest_relative="{videofile_dest_relative}" with dest_dir="{self.dest_dir}" --> videofile_dest="{videofile_dest}"'
+        )
 
         # If the new path equals the original filename on a case-insensitive basis, do nothing.
         if videofile_path.as_posix().upper() == videofile_dest.as_posix().upper():
