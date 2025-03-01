@@ -293,30 +293,36 @@ def run_test(testobj):
         else:
             os.environ[str(prop_name)] = str(testobj[prop_name])
         logging.info("%s: %s" % (prop_name, os.environ[prop_name]))
-    input_file_spec = testobj["INPUTFILE"]
-    output_file_spec = testobj["OUTPUTFILE"]
-    input_file_path = get_test_dir_path_file(input_file_spec)
 
     # Clean and recreate TEST_DIR for a clean start
     shutil.rmtree(TEST_DIR, True)
     os.makedirs(TEST_DIR, exist_ok=False)
 
-    # Get the directory of the input file
-    # This is used to set the NZBPP_DIRECTORY environment variable
-    input_test_dir = get_test_file_parent(input_file_spec)
-    if input_test_dir:
-        os.environ["NZBPP_DIRECTORY"] = str(input_test_dir)
-        # os.environ["NZBPP_FILENAME"] = input_file_name
-        logging.info("Using NZB directory: %s" % os.environ["NZBPP_DIRECTORY"])
+    if "INPUTFILE" in testobj and "OUTPUTFILE" in testobj:
+        input_file_spec = testobj["INPUTFILE"]
+        output_file_spec = testobj["OUTPUTFILE"]
 
-    input_file_size = testobj.get("INPUTFILESIZE", FILESIZE_DEFAULT)
+        input_file_path = get_test_dir_path_file(input_file_spec)
 
-    success = False
+        # Get the directory of the input file
+        # This is used to set the NZBPP_DIRECTORY environment variable
+        input_test_dir = get_test_file_parent(input_file_spec)
+        if input_test_dir:
+            os.environ["NZBPP_DIRECTORY"] = str(input_test_dir)
+            # os.environ["NZBPP_FILENAME"] = input_file_name
+            logging.info("Using NZB directory: %s" % os.environ["NZBPP_DIRECTORY"])
 
-    # Create input file
-    create_test_file(input_file_path, input_file_size)
+        input_file_size = testobj.get("INPUTFILESIZE", FILESIZE_DEFAULT)
+
+        # Create input file
+        create_test_file(input_file_path, input_file_size)
+    else:
+        # TODO: Handle this case
+        logging.info(f"Test id {testobj['id']}: not implemented")
+        return
 
     # Run deobfuscation sort on the input file
+    success = False
     dest = execute_deobfuscation_sort(input_file_path)
 
     success = dest == output_file_spec

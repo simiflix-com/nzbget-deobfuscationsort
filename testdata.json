@@ -1,5 +1,26 @@
-[
-  {
+[{
+  "id": "deobfuscate-filenames-1",
+  "download_unpacked": [
+    {"name": "7741f2ead476282176512b0abdeaf35f60e20fc8eb6de396ca74bc1761ad2378.mkv", "size": 100},
+    {"name": "bebae8cf9ae7400e0c4afa93067404dc0772f4c5a97555a5bee49f0d3b64093b.mkv", "size": 102},
+    {"name": "251b10d5f61e74a92a9d6f63994e77aaf6ab8436537b91b953593ccfaba5ed48.mkv", "size": 99},
+    {"name": "65d3cbce8ec4c1c4d24ab4ade210befa5a27386f8346e17827a05b2fe6b50151.mkv", "size": 95},
+    {"name": "ad2dc1ace5b5491cf1e252cb7828c4f6ba5429a6f0b0bf07a4f913e3516ef114.mkv", "size": 109},
+    {"name": "19d847a91053a1b06e7630b071d9ea2b608d830ca9dbb42f13d95fd5ac48942b.mkv", "size":  96},
+    {"name": "The Office UK S01 1080p HMAX WEB-DL DD2 0 H 264-pawel2006.nfo", "size": "423.00B"}
+  ],
+  "destination": [
+    {"name": "7741f2ead476282176512b0abdeaf35f60e20fc8eb6de396ca74bc1761ad2378.mkv", "size": 100},
+    {"name": "bebae8cf9ae7400e0c4afa93067404dc0772f4c5a97555a5bee49f0d3b64093b.mkv", "size": 102},
+    {"name": "251b10d5f61e74a92a9d6f63994e77aaf6ab8436537b91b953593ccfaba5ed48.mkv", "size": 99},
+    {"name": "65d3cbce8ec4c1c4d24ab4ade210befa5a27386f8346e17827a05b2fe6b50151.mkv", "size": 95},
+    {"name": "ad2dc1ace5b5491cf1e252cb7828c4f6ba5429a6f0b0bf07a4f913e3516ef114.mkv", "size": 109},
+    {"name": "19d847a91053a1b06e7630b071d9ea2b608d830ca9dbb42f13d95fd5ac48942b.mkv", "size":  96},
+    {"name": "The Office UK S01 1080p HMAX WEB-DL DD2 0 H 264-pawel2006.nfo", "size": "423.00B"}
+  ],
+  "NZBP_ORIGINAL_DIRNAME": "The Office UK S01 1080p HMAX WEB-DL DD2 0 H 264-pawel2006"
+},
+{
     "id": "deobfuscate-1",
     "INPUTFILE": "71.2014.720p.BluRay.DTS-HD.MA.x264-DON-Scrambled/abc.mkv",
     "OUTPUTFILE": "/movies/71.2014.720p.BluRay.DTS-HD.MA.x264-DON-Scrambled/71.2014.720p.BluRay.DTS-HD.MA.x264-DON.mkv",
@@ -17,6 +38,12 @@
     "OUTPUTFILE": "/series/BBC.Human.Planet.E08.Cities.Surviving.The.Urban.Jungle.2011.1080p.BluRay.DTS.x264-DON.mkv",
     "NZBPO_SERIESFORMAT": "%ddn.%ext",
     "NZBPO_PREFERNZBNAME": "yes"
+  },
+  {
+    "id": "deobfuscate-4",
+    "INPUTFILE": "Captain.Phillips.2013.2160p.UHD.Blu-ray.Remux.DV.HDR.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES.mkv-xpost.#62/bdc1fcddbe37fab379d721f124ce9befd5a326bdfbd22bbb15698283a3488ebd.mkv",
+    "OUTPUTFILE": "/movies/Captain.Phillips.2013.2160p.UHD.Blu-ray.Remux.DV.HDR.HEVC.TrueHD.Atmos.7.1-CiNEPHiLES.mkv",
+    "NZBPO_MOVIESFORMAT": "%ddn.%ext"
   },
   {
     "id": "up-ext-1",

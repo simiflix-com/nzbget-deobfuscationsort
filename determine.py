@@ -62,17 +62,15 @@ class Determine:
                         ]
                     )
                 ),
-                re.IGNORECASE,
+                flags=re.IGNORECASE,
             )
-        else:
-            self.deobfuscate_re = re.compile(
-                r"""
-                ^(.+? # Minimal length match for anything other than "-"
-                [-][.0-9a-z]+) # "-" followed by alphanumeric and dot indicates name of release group
-                .*$ # Anything that is left is considered deobfuscation and will be stripped
-            """,
-                flags=re.VERBOSE | re.IGNORECASE,
-            )
+        # Construct the rstrip regex for cases where the NZB directory name contains
+        # the video file extension and trailing obfuscation
+        self.nzb_dir_rstrip_re = re.compile(
+            r"""^(.+?) # Minimal length match for anything
+                \.(?:mkv|mp4)\b.*$""",  # Anything following a video file extension is considered obfuscation,
+            flags=re.VERBOSE | re.IGNORECASE,
+        )
 
         loginf(
             f"Determine: use_nzb_name={self.use_nzb_name} force_tv={self.force_tv} ({self.nzb_properties.category} {self.force_tv and 'in' or 'not in'} {self.processing_parameters.tv_categories})"
@@ -158,6 +156,13 @@ class Determine:
                 )
             )
 
+        dirname_rigthstripped = re.sub(
+            self.nzb_dir_rstrip_re, r"\1", dirname_deobfuscated
+        )
+        dirname = dirname_rigthstripped
+        logdet(
+            f'Right-stripped NZB dirname: "{dirname_deobfuscated}" --> "{dirname_rigthstripped}"'
+        )
         if name:
             # Determine if file name is likely to be properly cased
             case_check_re = (
