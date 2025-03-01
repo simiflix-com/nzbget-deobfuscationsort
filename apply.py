@@ -337,6 +337,9 @@ class Apply:
                         downloaded_file_path.suffix.lower().lstrip(".")
                         not in self.processing_parameters.video_extensions
                     ):
+                        logdet(
+                            f'Skipping "{str(downloaded_file)}" as its suffix={downloaded_file_path.suffix} is not in {self.processing_parameters.video_extensions}'
+                        )
                         continue
 
                     # Check minimum file size

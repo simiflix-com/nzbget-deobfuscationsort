@@ -39,10 +39,15 @@ class Determine:
         self.use_nzb_name = (
             self.processing_parameters.prefer_nzb_name and len(videofiles) == 1
         )
-        if self.processing_parameters.prefer_nzb_name and len(videofiles) > 1:
-            logdet(
-                "Multiple video files found, ignoring PreferNZBName configuration option"
-            )
+        if self.processing_parameters.prefer_nzb_name:
+            if len(videofiles) == 1:
+                loginf(
+                    f"Processing single video file {videofiles[0]}, using NZB directory to determine destination path"
+                )
+            else:
+                loginf(
+                    f"Processing {len(videofiles)} files: {videofiles}, ignoring PreferNZBName configuration option"
+                )
         # Determine if we should force the video file to be treated as a TV show
         self.force_tv = (
             self.nzb_properties.category.lower()
@@ -71,9 +76,9 @@ class Determine:
             )
         # Construct the rstrip regex for cases where the NZB directory name contains
         # the video file extension and trailing obfuscation
+        video_file_suffix_re = "|".join(self.processing_parameters.video_extensions)
         self.nzb_dir_rstrip_re = re.compile(
-            r"""^(.+?) # Minimal length match for anything
-                \.(?:mkv|mp4)\b.*$""",  # Anything following a video file extension is considered obfuscation,
+            rf"""^(.+?)\.(?:{video_file_suffix_re})\b.*$""",  # Strip anything following a video file suffix
             flags=re.VERBOSE | re.IGNORECASE,
         )
 
