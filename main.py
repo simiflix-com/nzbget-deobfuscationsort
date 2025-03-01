@@ -22,6 +22,7 @@
 
 import os
 import sys
+import json
 from pathlib import Path
 
 from apply import Apply
@@ -39,12 +40,17 @@ sys.stdout.reconfigure(encoding="utf-8")
 COMMIT_HASH = "c2a734c322f67ffa9b798204c2f8f030f29e4940"
 
 
-def get_commit_hash():
-    return COMMIT_HASH
+def get_version():
+    try:
+        with open("manifest.json", "r") as f:
+            data = json.load(f)
+            return data.get("version", "Unknown")
+    except (FileNotFoundError, json.JSONDecodeError):
+        return "Unknown"
 
 
-loginf(f"Running commit {get_commit_hash()}")
-
+EXTENSION_VERSION = get_version()
+loginf(f"Running version {EXTENSION_VERSION}")
 
 # Check if directory still exist (for post-process again)
 nzbp_directory = os.environ["NZBPP_DIRECTORY"]

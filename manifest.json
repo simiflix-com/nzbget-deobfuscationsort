@@ -4,11 +4,11 @@
   "homepage": "https://github.com/simiflix/nzbget-deobfuscationsort",
   "kind": "POST-PROCESSING",
   "displayName": "Deobfuscation Sort",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "nzbgetMinVersion": "23.0",
   "author": "Simi Flix",
   "license": "GNU",
-  "about": "Sorts and deobfuscates movies and tv shows.",
+  "about": "Sorts and deobfuscates movies and tv shows",
   "queueEvents": "",
   "requirements": [
     "This script requires Python 3.11 or above to be installed on your system."
