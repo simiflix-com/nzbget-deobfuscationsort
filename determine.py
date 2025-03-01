@@ -39,6 +39,11 @@ class Determine:
         self.use_nzb_name = (
             self.processing_parameters.prefer_nzb_name and len(videofiles) == 1
         )
+        if self.processing_parameters.prefer_nzb_name and len(videofiles) > 1:
+            logdet(
+                "Multiple video files found, ignoring PreferNZBName configuration option"
+            )
+        # Determine if we should force the video file to be treated as a TV show
         self.force_tv = (
             self.nzb_properties.category.lower()
             in self.processing_parameters.tv_categories
@@ -132,11 +137,7 @@ class Determine:
             name (str, optional): The reference name used for title matching.
 
         Returns:
-            tuple: A tuple containing four variations of the directory name:
-                - dirname (str): The deobfuscated and properly cased directory name.
-                - dots (str): The dirname with spaces replaced by dots.
-                - underscores (str): The dirname with spaces replaced by underscores.
-                - spaces (str): The dirname with dots and underscores replaced by spaces.
+            dirname (str): The deobfuscated and properly cased directory name.
         """
         dirname_clean = dirname.strip()
         dirname = dirname_clean
@@ -240,6 +241,26 @@ class Determine:
                     dirname = re.sub(term[0], term[1], dirname, flags=re.IGNORECASE)
 
                 loginf(f'Case-fixed dirname: "{dirname}"')
+
+        return dirname
+
+    def get_deobfuscated_dirname_mapping(self, dirname, name=None):
+        """
+        Deobfuscate the directory name and properly case all terms, including
+        quality identifiers and release terms.
+
+        Args:
+            dirname (str): The original directory name to be deobfuscated.
+            name (str, optional): The reference name used for title matching.
+
+        Returns:
+            tuple: A tuple containing four variations of the directory name:
+                - dirname (str): The deobfuscated and properly cased directory name.
+                - dots (str): The dirname with spaces replaced by dots.
+                - underscores (str): The dirname with spaces replaced by underscores.
+                - spaces (str): The dirname with dots and underscores replaced by spaces.
+        """
+        dirname = self.get_deobfuscated_dirname(dirname, name)
 
         # The title with spaces replaced by dots
         dots = dirname.replace(" - ", "-").replace(" ", ".").replace("_", ".")
@@ -548,7 +569,7 @@ class Determine:
             deobfuscated_dirname_dots,
             deobfuscated_dirname_underscores,
             deobfuscated_dirname_spaces,
-        ) = self.get_deobfuscated_dirname(original_dirname)
+        ) = self.get_deobfuscated_dirname_mapping(original_dirname)
         mapping.append(("%ddn", deobfuscated_dirname))
         mapping.append(("%.ddn", deobfuscated_dirname_dots))
         mapping.append(("%_ddn", deobfuscated_dirname_underscores))
@@ -558,7 +579,7 @@ class Determine:
             deobfuscated_dirname_titled_dots,
             deobfuscated_dirname_titled_underscores,
             deobfuscated_dirname_titled_spaces,
-        ) = self.get_deobfuscated_dirname(original_dirname, title_name)
+        ) = self.get_deobfuscated_dirname_mapping(original_dirname, title_name)
         mapping.append(("%ddN", deobfuscated_dirname_titled))
         mapping.append(("%.ddN", deobfuscated_dirname_titled_dots))
         mapping.append(("%_ddN", deobfuscated_dirname_titled_underscores))
@@ -1062,17 +1083,27 @@ class Determine:
         Expects `filename` to be a Path object and works exclusively with pathlib.
         """
         loginf(f'construct_path("{videofile_path}")')
+        clean_videofile_path = videofile_path
 
+        nzb_dir = videofile_path.parent.name
+        clean_nzb_dir = self.get_deobfuscated_dirname(nzb_dir)
+        if clean_nzb_dir != nzb_dir:
+            clean_videofile_path = videofile_path.parent.parent.joinpath(
+                clean_nzb_dir
+            ).joinpath(videofile_path.name)
+            loginf(f'construct_path: clean_videofile_path: "{clean_videofile_path}"')
         # Parse the filename using GuessIt.
-        guess = self.guess_info(videofile_path)
+        guess = self.guess_info(clean_videofile_path)
         mapping = []
-        self.add_common_mapping(videofile_path, guess, mapping)
+        self.add_common_mapping(clean_videofile_path, guess, mapping)
 
         # Determine settings based solely on environment variables.
         video_type = guess.get("vtype")
         fmt, specific_mapping = self.get_video_type_map(video_type)
         if not self.dest_dir or not fmt:
-            loginf(f"Could not determine video type for {videofile_path}")
+            loginf(
+                f"Could not determine video type for {clean_videofile_path} [from {videofile_path}]"
+            )
             return None
 
         # Apply video type–specific mapping.
