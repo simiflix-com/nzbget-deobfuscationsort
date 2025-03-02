@@ -74,12 +74,12 @@ class Determine:
                 ),
                 flags=re.IGNORECASE,
             )
-        # Construct the rstrip regex for cases where the NZB directory name contains
+        # Construct the regex for cases where the NZB directory name contains
         # the video file extension and trailing obfuscation
         video_file_suffix_re = "|".join(self.processing_parameters.video_extensions)
         self.nzb_dir_rstrip_re = re.compile(
-            rf"""^(.+?)\.(?:{video_file_suffix_re})\b.*$""",  # Strip anything following a video file suffix
-            flags=re.VERBOSE | re.IGNORECASE,
+            rf"^(.+?)(?:\.(?:{video_file_suffix_re}|\#[0-9]+)\b)+.*$",  # Strip anything following a video file suffix or a numeric suffix
+            flags=re.IGNORECASE,
         )
 
         loginf(
@@ -147,12 +147,20 @@ class Determine:
         dirname_clean = dirname.strip()
         dirname = dirname_clean
 
+        dirname_rigthstripped = re.sub(self.nzb_dir_rstrip_re, r"\1", dirname_clean)
+        dirname = dirname_rigthstripped
+        logdet(
+            f'Right-stripped NZB dirname: "{dirname_clean}" --> "{dirname_rigthstripped}"'
+        )
+
         # Apply deobfuscation regex if provided
         if self.deobfuscate_re:
-            dirname_deobfuscated = re.sub(self.deobfuscate_re, r"\1", dirname_clean)
+            dirname_deobfuscated = re.sub(
+                self.deobfuscate_re, r"\1", dirname_rigthstripped
+            )
             dirname = dirname_deobfuscated
             logdet(
-                f'De-obfuscated NZB dirname: "{dirname_clean}" --> "{dirname_deobfuscated}"'
+                f'De-obfuscated NZB dirname: "{dirname_rigthstripped}" --> "{dirname_deobfuscated}"'
             )
         else:
             logerr(
@@ -162,13 +170,6 @@ class Determine:
                 )
             )
 
-        dirname_rigthstripped = re.sub(
-            self.nzb_dir_rstrip_re, r"\1", dirname_deobfuscated
-        )
-        dirname = dirname_rigthstripped
-        logdet(
-            f'Right-stripped NZB dirname: "{dirname_deobfuscated}" --> "{dirname_rigthstripped}"'
-        )
         if name:
             # Determine if file name is likely to be properly cased
             case_check_re = (

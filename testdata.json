@@ -56,6 +56,13 @@
     "NZBPO_PREFERNZBNAME": "yes"
   },
   {
+    "id": "deobfuscate-6",
+    "INPUTFILE": "Kramer.vs.Kramer.1979.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR-xpost.#75/Kramer.vs.Kramer.1979.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR-xpost.#75.mkv",
+    "OUTPUTFILE": "/movies/Kramer.vs.Kramer.1979.UHD.BluRay.2160p.TrueHD.Atmos.7.1.DV.HEVC.REMUX-FraMeSToR.mkv",
+    "NZBPO_MOVIESFORMAT": "%ddn.%ext",
+    "NZBPO_PREFERNZBNAME": "yes"
+  },
+  {
     "id": "up-ext-1",
     "INPUTFILE": "71.2014.720p.Web-Dl.x264.Aac-IFT.MKV",
     "OUTPUTFILE": "/movies/71 (2014).MKV",
