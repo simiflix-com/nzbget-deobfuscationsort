@@ -333,12 +333,10 @@ class Apply:
                     downloaded_file_path = Path(root) / downloaded_file
 
                     # Check extension
-                    if (
-                        downloaded_file_path.suffix.lower().lstrip(".")
-                        not in self.processing_parameters.video_extensions
-                    ):
+                    suffix = downloaded_file_path.suffix.lower().lstrip(".")
+                    if suffix not in self.processing_parameters.video_extensions:
                         logdet(
-                            f'Skipping "{str(downloaded_file)}" as its suffix={downloaded_file_path.suffix} is not in {self.processing_parameters.video_extensions}'
+                            f'Skipping "{str(downloaded_file)}" as its suffix={suffix} is not in {self.processing_parameters.video_extensions}'
                         )
                         continue
 
